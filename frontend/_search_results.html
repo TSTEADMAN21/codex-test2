@@ -1,0 +1,16 @@
+{% if not q %}
+  <p class="muted">Start typing to search.</p>
+{% elif not results %}
+  <p class="muted">No matches for "{{ q }}".</p>
+{% else %}
+  <ol class="results">
+    {% for r in results %}
+      <li>
+        <span class="kind kind-{{ r.kind }}">{{ r.kind }}</span>
+        <a class="title" href="#" onclick="showDoc('{{ r.path }}'); return false;">{{ r.title }}</a>
+        <p class="snippet">{{ r.snippet | safe }}</p>
+        <small class="path">{{ r.path }}</small>
+      </li>
+    {% endfor %}
+  </ol>
+{% endif %}

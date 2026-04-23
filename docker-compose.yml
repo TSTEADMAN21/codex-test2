@@ -1,0 +1,16 @@
+services:
+  codex:
+    build: .
+    container_name: adventure-codex
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./codex:/app/codex
+      - ./data:/app/data
+      - ./raw-notes:/app/raw-notes
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Adventure Codex</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+</head>
+<body>
+  <header>
+    <h1>Adventure Codex</h1>
+    <p class="tagline">Your party's memory, kept local and free.</p>
+    <div class="status {{ 'ok' if ollama_ok else 'warn' }}">
+      Ollama: {{ 'online — ' + ollama_model if ollama_ok else 'offline (search-only mode)' }}
+    </div>
+  </header>
+
+  <section class="counts">
+    {% for kind, n in counts.items() %}
+      <div class="count-card"><strong>{{ n }}</strong><span>{{ kind }}s</span></div>
+    {% endfor %}
+  </section>
+
+  <section class="search">
+    <h2>Search the codex</h2>
+    <input type="search" name="q" placeholder="who was the innkeeper? firearm assassin? basilisk..."
+           hx-get="/search" hx-trigger="keyup changed delay:250ms" hx-target="#results" autofocus>
+    <div id="results"></div>
+  </section>
+
+  <section class="ask">
+    <h2>Ask a question (local LLM)</h2>
+    <form id="ask-form" onsubmit="askQuestion(event)">
+      <textarea name="question" rows="2" placeholder="what do we know about the firearm assassin?"></textarea>
+      <button type="submit" {{ '' if ollama_ok else 'disabled' }}>Ask</button>
+    </form>
+    <pre id="answer"></pre>
+  </section>
+
+  <footer>
+    <form hx-post="/api/reindex" hx-swap="none">
+      <button type="submit">Reindex codex</button>
+    </form>
+  </footer>
+
+  <script>
+    async function askQuestion(event) {
+      event.preventDefault();
+      const form = event.target;
+      const out = document.getElementById('answer');
+      out.textContent = '...thinking...';
+      const resp = await fetch('/api/ask', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: form.question.value}),
+      });
+      if (!resp.ok) {
+        out.textContent = 'error: ' + await resp.text();
+        return;
+      }
+      out.textContent = '';
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        out.textContent += decoder.decode(value, {stream: true});
+      }
+    }
+  </script>
+</body>
+</html>

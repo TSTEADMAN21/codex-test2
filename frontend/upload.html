@@ -14,10 +14,13 @@
   </nav>
 
   <h1 class="page-title">Upload Session Notes</h1>
-  <p class="muted upload-intro">Drop a <code>.md</code> file with your session notes. The notetaker and dates are read from the frontmatter automatically — or fill them in below.</p>
+  <p class="muted upload-intro">
+    Drop a <code>.md</code> or <code>.txt</code> file. A single-session file is saved as-is.
+    A multi-session file (with date headers like <code>**12/17**</code> or <code>\--2-25-20---</code>)
+    is automatically split into individual sessions.
+  </p>
 
   <form id="upload-form" enctype="multipart/form-data" onsubmit="handleUpload(event)">
-
     <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
       <div class="drop-zone-icon">📜</div>
       <div class="drop-zone-text">Drop notes file here</div>
@@ -30,17 +33,11 @@
       <div class="upload-field">
         <label class="upload-label" for="notetaker-input">Notetaker</label>
         <input type="text" id="notetaker-input" name="notetaker"
-               placeholder="auto-detected from frontmatter">
-      </div>
-      <div class="upload-field">
-        <label class="upload-label" for="slug-input">Session slug</label>
-        <input type="text" id="slug-input" name="slug"
-               placeholder="auto-derived — e.g. 2024-01-15_dragon-heist-tavern">
-        <small class="upload-hint">Leave blank to auto-derive from filename + frontmatter date</small>
+               placeholder="auto-detected from frontmatter, or leave blank">
       </div>
     </div>
 
-    <button type="submit" id="submit-btn">✦ Upload &amp; Index</button>
+    <button type="submit" id="submit-btn">✦ Upload &amp; Process</button>
   </form>
 
   <div id="upload-result"></div>
@@ -53,31 +50,20 @@
     fileInput.addEventListener('change', () => {
       if (fileInput.files[0]) showFile(fileInput.files[0]);
     });
-
-    dropZone.addEventListener('dragover', e => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
+    dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
     dropZone.addEventListener('drop', e => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
       const f = e.dataTransfer.files[0];
       if (!f) return;
-      const dt = new DataTransfer();
-      dt.items.add(f);
-      fileInput.files = dt.files;
+      const dt = new DataTransfer(); dt.items.add(f); fileInput.files = dt.files;
       showFile(f);
     });
 
     function showFile(f) {
       fileLabel.textContent = f.name;
       dropZone.classList.add('has-file');
-      const slugField = document.getElementById('slug-input');
-      if (!slugField.value) {
-        const stem = f.name.replace(/\.(md|txt)$/i, '').replace(/^notes-/i, '');
-        slugField.placeholder = stem || 'auto-derived';
-      }
     }
 
     async function handleUpload(e) {
@@ -85,16 +71,16 @@
       const btn    = document.getElementById('submit-btn');
       const result = document.getElementById('upload-result');
       btn.disabled = true;
-      btn.textContent = '…indexing';
-      result.innerHTML = '';
+      btn.textContent = '…processing';
+      result.innerHTML = '<p class="muted">Splitting and indexing — this may take a moment for large files…</p>';
 
-      const resp = await fetch('/api/upload/notes', {
+      const resp = await fetch('/api/upload/split', {
         method: 'POST',
         body: new FormData(e.target),
       });
 
       btn.disabled = false;
-      btn.textContent = '✦ Upload & Index';
+      btn.textContent = '✦ Upload & Process';
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({detail: resp.statusText}));
@@ -103,19 +89,33 @@
       }
 
       const data = await resp.json();
-      result.innerHTML =
-        '<div class="upload-success">' +
-          '<p>✓ Saved and indexed as <strong>' + data.slug + '</strong></p>' +
-          '<a class="upload-link" href="/session?path=' + data.path + '">Open session →</a>' +
-          '&ensp;' +
-          '<a class="upload-link" href="/upload">Upload another →</a>' +
-        '</div>';
+      const n = data.sessions_created;
 
-      // Reset form
+      if (n === 1) {
+        const s = data.sessions[0];
+        result.innerHTML =
+          '<div class="upload-success">' +
+            '<p>✓ 1 session saved and indexed</p>' +
+            '<a class="upload-link" href="/session?path=sessions/' + s.slug + '">Open session →</a>' +
+            '&ensp;<a class="upload-link" href="/upload">Upload another →</a>' +
+          '</div>';
+      } else {
+        const dates  = data.sessions.map(s => s.date).filter(d => d !== '0000-00-00');
+        const first  = dates.length ? dates[0].slice(0, 4) : '';
+        const last   = dates.length ? dates[dates.length - 1].slice(0, 4) : '';
+        const span   = first && last && first !== last ? first + '–' + last : first;
+
+        result.innerHTML =
+          '<div class="upload-success">' +
+            '<p>✓ ' + n + ' sessions split and indexed' + (span ? ' (' + span + ')' : '') + '</p>' +
+            '<a class="upload-link" href="/sessions">View session archive →</a>' +
+            '&ensp;<a class="upload-link" href="/upload">Upload another →</a>' +
+          '</div>';
+      }
+
       e.target.reset();
       fileLabel.textContent = '';
       dropZone.classList.remove('has-file');
-      document.getElementById('slug-input').placeholder = 'auto-derived — e.g. 2024-01-15_dragon-heist-tavern';
     }
   </script>
 </body>

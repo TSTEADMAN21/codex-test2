@@ -460,6 +460,149 @@ async def upload_notes(
     return JSONResponse({"slug": slug, "path": f"sessions/{slug}"})
 
 
+_SLUG_STOP = frozenset({
+    "the","and","for","with","was","are","his","her","they","that","this",
+    "from","have","had","but","not","she","him","into","over","also","just",
+    "then","been","when","were","said","each","which","their","time","will",
+})
+
+def _slug_words(text: str, max_words: int = 5) -> str:
+    words = _re.findall(r"[a-z]+", text.lower())
+    words = [w for w in words if len(w) > 2 and w not in _SLUG_STOP]
+    return "-".join(words[:max_words])
+
+
+def _split_sessions(content: str) -> list[dict]:
+    """Split a multi-session document into individual session dicts."""
+    lines = content.splitlines()
+    sessions: list[dict] = []
+    cur_lines: list[str] = []
+    cur_month = cur_day = cur_year = None
+    last_year: int | None = None
+    last_month: int | None = None
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+        # Strip leading/trailing noise (backslash, star, dash, space) then test for date
+        stripped = _re.sub(r"^[\\*\-\s]+", "", line)
+        stripped = _re.sub(r"[\\*\-\s]+$", "", stripped)
+        m = _re.match(r"^(\d{1,2})[/\-](\d{1,2})(?:[/\-](\d{2,4}))?", stripped)
+        if m:
+            month, day = int(m.group(1)), int(m.group(2))
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                yr_str = m.group(3)
+                if yr_str:
+                    year: int = int(yr_str)
+                    if year < 100:
+                        year += 2000
+                    last_year = year
+                else:
+                    # Infer year: if month wrapped back significantly, bump year
+                    if last_year is None:
+                        year = 2019
+                    elif last_month is not None and month < last_month - 2:
+                        year = last_year + 1
+                    else:
+                        year = last_year
+                    last_year = year
+
+                last_month = month
+
+                # Flush previous block
+                if any(l.strip() for l in cur_lines):
+                    sessions.append({
+                        "month": cur_month, "day": cur_day, "year": cur_year,
+                        "lines": cur_lines,
+                        "header_tail": "",
+                    })
+                # Grab any description text after the date in the header
+                header_tail = stripped[m.end():]
+                header_tail = _re.sub(r"^[\s\\*\-]+", "", header_tail)
+                header_tail = _re.sub(r"[\s\\*\-]+$", "", header_tail)
+
+                cur_month, cur_day, cur_year = month, day, year
+                cur_lines = []
+                # Store tail for slug use, will be set on flush
+                _tail = header_tail
+                continue
+
+        cur_lines.append(line)
+
+    if any(l.strip() for l in cur_lines):
+        sessions.append({
+            "month": cur_month, "day": cur_day, "year": cur_year,
+            "lines": cur_lines,
+            "header_tail": "",
+        })
+
+    return sessions
+
+
+@app.post("/api/upload/split")
+async def split_upload(
+    file: UploadFile,
+    notetaker: str = Form(""),
+):
+    fname = file.filename or ""
+    if not fname.lower().endswith((".md", ".txt")):
+        raise HTTPException(400, "File must be a .md or .txt file")
+
+    content = (await file.read()).decode("utf-8", errors="replace")
+
+    if not notetaker:
+        try:
+            fm_obj = _fm.loads(content)
+            notetaker = str(fm_obj.get("notetaker", "")) or ""
+        except Exception:
+            pass
+    if not notetaker:
+        notetaker = "unknown"
+    safe_notetaker = _re.sub(r"[^a-z0-9]", "-", notetaker.lower()).strip("-") or "unknown"
+
+    sessions = _split_sessions(content)
+    if not sessions:
+        raise HTTPException(400, "No content found in file")
+
+    created: list[dict] = []
+    skipped: list[dict] = []
+
+    for s in sessions:
+        year, month, day = s["year"], s["month"], s["day"]
+        if year and month and day:
+            date_str = f"{year:04d}-{month:02d}-{day:02d}"
+        else:
+            date_str = "0000-00-00"
+
+        # Build slug: prefer first content words, fall back to date only
+        desc = _slug_words(" ".join(s["lines"][:5]))
+        base_slug = f"{date_str}_{desc}" if desc else date_str
+        base_slug = _re.sub(r"[^a-z0-9_\-]", "", base_slug)[:80]
+
+        # Ensure unique slug
+        slug = base_slug
+        counter = 2
+        while (CODEX_ROOT / "sessions" / slug).exists():
+            slug = f"{base_slug}-v{counter}"
+            counter += 1
+
+        session_dir = CODEX_ROOT / "sessions" / slug
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        fm_header = (
+            f"---\n"
+            f"real_date: {date_str}\n"
+            f"notetaker: {notetaker}\n"
+            f"scene_count: 0\n"
+            f"---\n\n"
+        )
+        notes_path = session_dir / f"notes-{safe_notetaker}.md"
+        notes_path.write_text(fm_header + "\n".join(s["lines"]), encoding="utf-8")
+        created.append({"slug": slug, "date": date_str})
+
+    indexer.reindex(CODEX_ROOT, DB_PATH)
+    return JSONResponse({"sessions_created": len(created), "sessions_skipped": len(skipped), "sessions": created})
+
+
 @app.post("/api/reindex")
 async def api_reindex():
     n = indexer.reindex(CODEX_ROOT, DB_PATH)

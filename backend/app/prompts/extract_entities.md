@@ -11,7 +11,9 @@ You are extracting entities from ONE scene of a Dungeons & Dragons session log. 
       "name": "string — exactly as written in the scene",
       "description": "string — one sentence, using ONLY facts from the scene",
       "evidence_quote": "string — a verbatim substring of the scene text that proves this NPC was mentioned",
-      "first_seen_this_scene": true
+      "first_seen_this_scene": true,
+      "allegiance": "string — faction, guild, organization, or group this NPC belongs to, if stated in the scene; empty string if unknown",
+      "locations_seen": ["string — name of location(s) where this NPC appears in this scene, if mentioned"]
     }
   ],
   "locations": [
@@ -25,7 +27,8 @@ You are extracting entities from ONE scene of a Dungeons & Dragons session log. 
     {
       "name": "string",
       "description": "string",
-      "evidence_quote": "string"
+      "evidence_quote": "string",
+      "carried_by": "string — name of the NPC who possesses or wields this item, if stated in the scene; empty string if not carried by a specific NPC"
     }
   ],
   "events": [

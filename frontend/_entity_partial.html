@@ -9,6 +9,7 @@
       <a href="/entity?path={{ path }}">{{ name }}</a>
     </h2>
     {% if role %}<span class="party-role">{{ role }}</span>{% endif %}
+    {% if allegiance %}<span class="allegiance-badge">⚔ {{ allegiance }}</span>{% endif %}
     {% if status and status not in ('active', 'open') %}
       <span class="status-badge status-{{ status }}">{{ status }}</span>
     {% endif %}
@@ -19,6 +20,33 @@
 
   {% if description %}
   <p class="entity-description">{{ description }}</p>
+  {% endif %}
+
+  {% if locations_seen %}
+  <div class="entity-locations">
+    <span class="meta-label">Spotted at</span>
+    {% for loc in locations_seen %}
+    <span class="location-tag">📍 {{ loc }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if carried_items %}
+  <div class="entity-carried-items">
+    <span class="meta-label">Carries</span>
+    {% for item in carried_items %}
+    <span class="item-tag">⚔ {{ item }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if carried_by %}
+  <div class="entity-carried-by">
+    <span class="meta-label">Carried by</span>
+    {% for npc in carried_by %}
+    <span class="npc-tag">👤 {{ npc }}</span>
+    {% endfor %}
+  </div>
   {% endif %}
 
   {% if personal_storylines %}

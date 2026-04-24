@@ -37,6 +37,13 @@
             onclick="setActiveTab(this)">Party</button>
   </div>
 
+  <!-- Allegiance grouping toggle — only shown for NPC tab -->
+  <div class="allegiance-toggle-bar" id="allegiance-toggle-bar" {% if kind != 'npc' %}hidden{% endif %}>
+    <button type="button" class="tag-pill" id="allegiance-group-btn" onclick="toggleAllegianceGroup()">
+      ⚔ Group by Allegiance
+    </button>
+  </div>
+
   <!-- Tag filter bar — hidden until tags exist -->
   <div class="tag-filter-bar" id="tag-filter-bar" hidden>
     <span class="tag-filter-label">Filter</span>
@@ -107,6 +114,47 @@
       selected.clear();
       document.getElementById('selection-bar').hidden = true;
       activeTags.clear();
+      allegianceGrouped = false;
+      const atb = document.getElementById('allegiance-toggle-bar');
+      if (atb) atb.hidden = (currentKind !== 'npc');
+      const ab = document.getElementById('allegiance-group-btn');
+      if (ab) ab.classList.remove('active');
+    }
+
+    // ── Allegiance grouping ───────────────────────────────────────────────────
+    let allegianceGrouped = false;
+
+    function toggleAllegianceGroup() {
+      const btn = document.getElementById('allegiance-group-btn');
+      allegianceGrouped = !allegianceGrouped;
+      btn.classList.toggle('active', allegianceGrouped);
+      renderAllegianceGroups();
+    }
+
+    function renderAllegianceGroups() {
+      const grid = document.getElementById('entity-grid');
+      if (!grid) return;
+      const cards = [...grid.querySelectorAll('.entity-card')];
+      if (!allegianceGrouped) {
+        // Remove group wrappers, put cards back flat
+        grid.innerHTML = '';
+        cards.forEach(c => { c.style.display = ''; grid.appendChild(c); });
+        return;
+      }
+      const groups = new Map();
+      cards.forEach(c => {
+        const a = (c.dataset.allegiance || '').trim() || '— Unknown —';
+        if (!groups.has(a)) groups.set(a, []);
+        groups.get(a).push(c);
+      });
+      grid.innerHTML = '';
+      [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([label, group]) => {
+        const hdr = document.createElement('div');
+        hdr.className = 'allegiance-group-header';
+        hdr.textContent = label;
+        grid.appendChild(hdr);
+        group.forEach(c => grid.appendChild(c));
+      });
     }
 
     // ── Thread status ─────────────────────────────────────────────────────────

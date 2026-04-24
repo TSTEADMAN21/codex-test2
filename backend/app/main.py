@@ -447,9 +447,19 @@ def _appearance_block(session_date: str, slug: str, evidence: list) -> str:
         lines.append(f'- Scene {ev["scene"]}: _{ev["quote"]}_')
     return "\n".join(lines) + "\n"
 
-def _create_entity_file_web(path, name: str, kind: str, description: str, evidence: list, session_slug: str):
+def _create_entity_file_web(path, name: str, kind: str, description: str, evidence: list, session_slug: str,
+                            allegiance: str = "", locations_seen: list | None = None,
+                            carried_by: list | None = None, carried_items: list | None = None):
     session_date = _session_date_from_slug(session_slug)
-    fm = f"---\nname: {name}\ntype: {kind}\naliases: []\nfirst_seen: {session_date}\nsessions: [{session_slug}]\ntags: []\nstatus: active\n---\n"
+    locs_yaml = _json.dumps(locations_seen or [])
+    carried_by_yaml = _json.dumps(carried_by or [])
+    carried_items_yaml = _json.dumps(carried_items or [])
+    fm = (
+        f"---\nname: {name}\ntype: {kind}\naliases: []\n"
+        f"first_seen: {session_date}\nsessions: [{session_slug}]\ntags: []\nstatus: active\n"
+        f"allegiance: {allegiance}\nlocations_seen: {locs_yaml}\n"
+        f"carried_by: {carried_by_yaml}\ncarried_items: {carried_items_yaml}\n---\n"
+    )
     body = f"\n## Description\n\n{description or name}\n\n## Appearances\n\n{_appearance_block(session_date, session_slug, evidence)}"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(fm + body, encoding="utf-8")
@@ -520,8 +530,14 @@ async def extract_session_entities(payload: dict):
             for npc in verified.npcs:
                 k = npc.name.strip()
                 if k not in npc_bucket:
-                    npc_bucket[k] = {"name": k, "description": npc.description, "evidence": []}
+                    npc_bucket[k] = {"name": k, "description": npc.description, "evidence": [],
+                                     "allegiance": npc.allegiance, "locations_seen": []}
+                elif npc.allegiance and not npc_bucket[k]["allegiance"]:
+                    npc_bucket[k]["allegiance"] = npc.allegiance
                 npc_bucket[k]["evidence"].append({"scene": scene.index, "quote": npc.evidence_quote})
+                for loc in npc.locations_seen:
+                    if loc and loc not in npc_bucket[k]["locations_seen"]:
+                        npc_bucket[k]["locations_seen"].append(loc)
             for loc in verified.locations:
                 k = loc.name.strip()
                 if k not in loc_bucket:
@@ -530,7 +546,10 @@ async def extract_session_entities(payload: dict):
             for itm in verified.items:
                 k = itm.name.strip()
                 if k not in item_bucket:
-                    item_bucket[k] = {"name": k, "description": itm.description, "evidence": []}
+                    item_bucket[k] = {"name": k, "description": itm.description, "evidence": [],
+                                      "carried_by": itm.carried_by}
+                elif itm.carried_by and not item_bucket[k]["carried_by"]:
+                    item_bucket[k]["carried_by"] = itm.carried_by
                 item_bucket[k]["evidence"].append({"scene": scene.index, "quote": itm.evidence_quote})
             for t in verified.plot_threads_opened:
                 threads.append({"scene": scene.index, "description": t.thread})
@@ -598,15 +617,55 @@ async def promote_entities(payload: dict):
             name = sel.get("name", "")
             desc = sel.get("description", "")
             evidence = sel.get("evidence", [])
+            allegiance = sel.get("allegiance", "")
+            locations_seen = sel.get("locations_seen", [])
+            carried_by = [sel.get("carried_by", "")] if sel.get("carried_by") else []
             slug = _entity_slugify(name)
             target = kind_dir / f"{slug}.md"
             kind_singular = kind.rstrip("s")
             if not target.exists():
-                _create_entity_file_web(target, name, kind_singular, desc, evidence, session_slug)
+                _create_entity_file_web(target, name, kind_singular, desc, evidence, session_slug,
+                                        allegiance=allegiance, locations_seen=locations_seen,
+                                        carried_by=carried_by)
                 created += 1; action = "created"
             else:
                 _append_entity_appearance_web(target, evidence, session_slug)
+                # Update allegiance if newly discovered
+                if allegiance:
+                    txt = target.read_text(encoding="utf-8")
+                    if "allegiance: \n" in txt or "allegiance: ''" in txt or 'allegiance: ""' in txt:
+                        txt = _re.sub(r"^allegiance: .*$", f"allegiance: {allegiance}", txt, flags=_re.MULTILINE)
+                        target.write_text(txt, encoding="utf-8")
+                # Merge new locations_seen
+                if locations_seen:
+                    txt = target.read_text(encoding="utf-8")
+                    m = _re.search(r"^locations_seen: (\[.*?\])$", txt, flags=_re.MULTILINE)
+                    if m:
+                        try:
+                            existing = _json.loads(m.group(1))
+                            merged = list(dict.fromkeys(existing + locations_seen))
+                            txt = txt[:m.start(1)] + _json.dumps(merged) + txt[m.end(1):]
+                            target.write_text(txt, encoding="utf-8")
+                        except Exception:
+                            pass
                 updated += 1; action = "updated"
+            # Cross-link item → NPC: add item slug to NPC's carried_items
+            if kind_singular == "item" and carried_by:
+                npc_name = carried_by[0]
+                npc_slug = _entity_slugify(npc_name)
+                npc_path = CODEX_ROOT / "npcs" / f"{npc_slug}.md"
+                if npc_path.exists():
+                    txt = npc_path.read_text(encoding="utf-8")
+                    m = _re.search(r"^carried_items: (\[.*?\])$", txt, flags=_re.MULTILINE)
+                    if m:
+                        try:
+                            existing = _json.loads(m.group(1))
+                            if name not in existing:
+                                existing.append(name)
+                                txt = txt[:m.start(1)] + _json.dumps(existing) + txt[m.end(1):]
+                                npc_path.write_text(txt, encoding="utf-8")
+                        except Exception:
+                            pass
             entities.append({"name": name, "action": action, "path": f"{dir_name}/{slug}.md"})
 
     indexer.reindex(CODEX_ROOT, DB_PATH)
@@ -909,8 +968,14 @@ async def bulk_process(payload: dict):
                     for npc in verified.npcs:
                         k = npc.name.strip()
                         if k not in npc_bucket:
-                            npc_bucket[k] = {"name": k, "description": npc.description, "evidence": []}
+                            npc_bucket[k] = {"name": k, "description": npc.description, "evidence": [],
+                                             "allegiance": npc.allegiance, "locations_seen": []}
+                        elif npc.allegiance and not npc_bucket[k]["allegiance"]:
+                            npc_bucket[k]["allegiance"] = npc.allegiance
                         npc_bucket[k]["evidence"].append({"scene": scene.index, "quote": npc.evidence_quote})
+                        for loc in npc.locations_seen:
+                            if loc and loc not in npc_bucket[k]["locations_seen"]:
+                                npc_bucket[k]["locations_seen"].append(loc)
                     for loc in verified.locations:
                         k = loc.name.strip()
                         if k not in loc_bucket:
@@ -919,7 +984,10 @@ async def bulk_process(payload: dict):
                     for itm in verified.items:
                         k = itm.name.strip()
                         if k not in item_bucket:
-                            item_bucket[k] = {"name": k, "description": itm.description, "evidence": []}
+                            item_bucket[k] = {"name": k, "description": itm.description, "evidence": [],
+                                              "carried_by": itm.carried_by}
+                        elif itm.carried_by and not item_bucket[k]["carried_by"]:
+                            item_bucket[k]["carried_by"] = itm.carried_by
                         item_bucket[k]["evidence"].append({"scene": scene.index, "quote": itm.evidence_quote})
                     for t in verified.plot_threads_opened:
                         threads.append({"scene": scene.index, "description": t.thread})

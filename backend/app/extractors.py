@@ -31,6 +31,8 @@ class _Entity(BaseModel):
 
 class NPC(_Entity):
     first_seen_this_scene: bool = True
+    allegiance: str = ""
+    locations_seen: List[str] = Field(default_factory=list)
 
 
 class Location(_Entity):
@@ -38,7 +40,7 @@ class Location(_Entity):
 
 
 class Item(_Entity):
-    pass
+    carried_by: str = ""
 
 
 class Event(BaseModel):

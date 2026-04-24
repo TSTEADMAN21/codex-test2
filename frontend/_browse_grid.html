@@ -66,7 +66,10 @@
 
   {% else %}
   {# ── Entity card (npc / location / item) ──────────────────────────────── #}
-  <div class="entity-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}">
+  {% set all_tags = e.tags + ([e.allegiance] if e.allegiance else []) + e.locations_seen %}
+  <div class="entity-card" data-path="{{ e.path }}"
+       data-tags="{{ all_tags | join(',') }}"
+       data-allegiance="{{ e.allegiance }}">
     <label class="card-select-wrap">
       <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name }}" onchange="updateSelection()">
     </label>
@@ -79,8 +82,18 @@
         <span class="card-sessions">{{ e.sessions | length }} session{{ 's' if e.sessions | length != 1 }}</span>
       </div>
       <div class="card-name">{{ e.name }}</div>
+      {% if e.allegiance %}
+      <div class="card-allegiance">⚔ {{ e.allegiance }}</div>
+      {% endif %}
       {% if e.description %}
       <p class="card-desc">{{ e.description }}</p>
+      {% endif %}
+      {% if e.locations_seen %}
+      <div class="card-locations">
+        {% for loc in e.locations_seen[:3] %}
+        <span class="location-tag-sm">📍 {{ loc }}</span>
+        {% endfor %}
+      </div>
       {% endif %}
       {% if e.first_seen %}
       <div class="card-meta">First seen {{ e.first_seen }}</div>

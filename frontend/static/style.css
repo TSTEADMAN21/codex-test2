@@ -389,6 +389,39 @@ details[open].notes-accordion > summary::before { content: '▼ '; }
 .card-name { font-weight: 700; color: var(--accent); font-size: 1rem; font-family: 'Cinzel', serif; }
 .card-desc { margin: 0; color: var(--text); font-size: 0.9rem; line-height: 1.4; }
 .card-meta { color: var(--muted); font-size: 0.75rem; margin-top: auto; padding-top: 0.25rem; font-style: italic; }
+.card-allegiance { font-size: 0.75rem; color: var(--warn); margin-top: 0.2rem; font-style: italic; }
+.card-locations { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.3rem; }
+.location-tag-sm { font-size: 0.68rem; background: rgba(60,120,80,0.18); border: 1px solid rgba(60,120,80,0.35); color: #7db88a; border-radius: 2px; padding: 0.05rem 0.35rem; }
+
+/* ── Allegiance grouping ──────────────────────────────────────────────── */
+.allegiance-toggle-bar { margin-bottom: 0.75rem; }
+.allegiance-group-header {
+  grid-column: 1 / -1; font-family: 'Cinzel', serif; font-size: 0.9rem;
+  color: var(--warn); border-bottom: 1px solid rgba(196,120,32,0.3);
+  padding: 0.5rem 0 0.25rem; margin-top: 0.5rem; letter-spacing: 0.05em;
+}
+
+/* ── Entity page: allegiance + location + item tags ──────────────────── */
+.allegiance-badge {
+  font-size: 0.8rem; color: var(--warn); border: 1px solid rgba(196,120,32,0.4);
+  padding: 0.1rem 0.5rem; border-radius: 2px; font-style: italic;
+}
+.entity-locations, .entity-carried-items, .entity-carried-by {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem;
+  margin: 0.4rem 0; font-size: 0.85rem;
+}
+.location-tag {
+  background: rgba(60,120,80,0.15); border: 1px solid rgba(60,120,80,0.3);
+  color: #7db88a; padding: 0.1rem 0.5rem; border-radius: 2px; font-size: 0.8rem;
+}
+.item-tag {
+  background: rgba(180,140,20,0.12); border: 1px solid rgba(180,140,20,0.3);
+  color: var(--accent); padding: 0.1rem 0.5rem; border-radius: 2px; font-size: 0.8rem;
+}
+.npc-tag {
+  background: rgba(100,80,160,0.15); border: 1px solid rgba(100,80,160,0.3);
+  color: #a090d0; padding: 0.1rem 0.5rem; border-radius: 2px; font-size: 0.8rem;
+}
 
 /* ── Selection bar ───────────────────────────────────────────────────── */
 .selection-bar {

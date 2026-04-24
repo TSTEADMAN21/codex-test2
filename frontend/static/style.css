@@ -449,3 +449,39 @@ details[open].notes-accordion > summary::before { content: '▼ '; }
 .scene-quote { color: var(--text); font-style: italic; font-size: 0.95rem; quotes: "\201C" "\201D"; }
 .scene-quote::before { content: open-quote; color: var(--accent); margin-right: 1px; }
 .scene-quote::after  { content: close-quote; color: var(--accent); margin-left: 1px; }
+
+/* ── Upload page ─────────────────────────────────────────────────────── */
+.upload-intro { margin-bottom: 1.5rem; }
+.upload-intro code { font-family: monospace; color: var(--accent); }
+
+.drop-zone {
+  border: 2px dashed var(--border); border-radius: 4px;
+  padding: 3rem 2rem; text-align: center; cursor: pointer;
+  background: var(--panel); margin-bottom: 1.5rem;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent); background: rgba(244,216,72,0.04);
+  box-shadow: 0 0 20px rgba(244,216,72,0.12);
+}
+.drop-zone.has-file { border-style: solid; border-color: var(--accent); }
+
+.drop-zone-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.drop-zone-text { font-size: 1.1rem; color: var(--text); font-family: 'Cinzel', serif; margin-bottom: 0.3rem; }
+.drop-zone-sub  { font-size: 0.85rem; color: var(--muted); font-style: italic; }
+.drop-zone-filename { margin-top: 0.85rem; color: var(--accent); font-family: monospace; font-size: 0.9rem; min-height: 1.2em; }
+
+.upload-fields { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+.upload-field  { display: flex; flex-direction: column; gap: 0.3rem; }
+.upload-label  { font-family: 'Cinzel', serif; font-size: 0.88rem; color: var(--muted); letter-spacing: 0.03em; }
+.upload-hint   { color: var(--muted); font-size: 0.8rem; font-style: italic; margin-top: 0.15rem; }
+
+.upload-success {
+  margin-top: 1.25rem; padding: 1rem 1.25rem;
+  background: rgba(58,136,69,0.12); border: 1px solid rgba(58,136,69,0.3); border-radius: 3px;
+}
+.upload-success p { margin: 0 0 0.5rem; color: var(--ok); }
+.upload-success strong { color: var(--accent); }
+.upload-link { color: var(--accent); text-decoration: none; font-family: 'Cinzel', serif; font-size: 0.9rem; }
+.upload-link:hover { text-decoration: underline; }
+.upload-error { margin-top: 1rem; color: var(--warn); }

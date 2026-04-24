@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Upload Notes — Adventure Codex</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="breadcrumb">
+    <a href="/">← Codex</a>
+    <span class="breadcrumb-sep">·</span>
+    <a href="/sessions">Sessions</a>
+  </nav>
+
+  <h1 class="page-title">Upload Session Notes</h1>
+  <p class="muted upload-intro">Drop a <code>.md</code> file with your session notes. The notetaker and dates are read from the frontmatter automatically — or fill them in below.</p>
+
+  <form id="upload-form" enctype="multipart/form-data" onsubmit="handleUpload(event)">
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div class="drop-zone-icon">📜</div>
+      <div class="drop-zone-text">Drop notes file here</div>
+      <div class="drop-zone-sub">or click to browse · .md and .txt accepted</div>
+      <div class="drop-zone-filename" id="file-name"></div>
+      <input type="file" name="file" accept=".md,.txt" id="file-input" hidden required>
+    </div>
+
+    <div class="upload-fields">
+      <div class="upload-field">
+        <label class="upload-label" for="notetaker-input">Notetaker</label>
+        <input type="text" id="notetaker-input" name="notetaker"
+               placeholder="auto-detected from frontmatter">
+      </div>
+      <div class="upload-field">
+        <label class="upload-label" for="slug-input">Session slug</label>
+        <input type="text" id="slug-input" name="slug"
+               placeholder="auto-derived — e.g. 2024-01-15_dragon-heist-tavern">
+        <small class="upload-hint">Leave blank to auto-derive from filename + frontmatter date</small>
+      </div>
+    </div>
+
+    <button type="submit" id="submit-btn">✦ Upload &amp; Index</button>
+  </form>
+
+  <div id="upload-result"></div>
+
+  <script>
+    const dropZone  = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const fileLabel = document.getElementById('file-name');
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) showFile(fileInput.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (!f) return;
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      fileInput.files = dt.files;
+      showFile(f);
+    });
+
+    function showFile(f) {
+      fileLabel.textContent = f.name;
+      dropZone.classList.add('has-file');
+      const slugField = document.getElementById('slug-input');
+      if (!slugField.value) {
+        const stem = f.name.replace(/\.(md|txt)$/i, '').replace(/^notes-/i, '');
+        slugField.placeholder = stem || 'auto-derived';
+      }
+    }
+
+    async function handleUpload(e) {
+      e.preventDefault();
+      const btn    = document.getElementById('submit-btn');
+      const result = document.getElementById('upload-result');
+      btn.disabled = true;
+      btn.textContent = '…indexing';
+      result.innerHTML = '';
+
+      const resp = await fetch('/api/upload/notes', {
+        method: 'POST',
+        body: new FormData(e.target),
+      });
+
+      btn.disabled = false;
+      btn.textContent = '✦ Upload & Index';
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        result.innerHTML = '<p class="upload-error">✗ ' + (err.detail || resp.statusText) + '</p>';
+        return;
+      }
+
+      const data = await resp.json();
+      result.innerHTML =
+        '<div class="upload-success">' +
+          '<p>✓ Saved and indexed as <strong>' + data.slug + '</strong></p>' +
+          '<a class="upload-link" href="/session?path=' + data.path + '">Open session →</a>' +
+          '&ensp;' +
+          '<a class="upload-link" href="/upload">Upload another →</a>' +
+        '</div>';
+
+      // Reset form
+      e.target.reset();
+      fileLabel.textContent = '';
+      dropZone.classList.remove('has-file');
+      document.getElementById('slug-input').placeholder = 'auto-derived — e.g. 2024-01-15_dragon-heist-tavern';
+    }
+  </script>
+</body>
+</html>

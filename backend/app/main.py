@@ -30,7 +30,7 @@ def _question_to_fts(question: str) -> str:
 
 import edge_tts
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -404,6 +404,60 @@ async def update_entity_status(payload: dict):
     text = _re.sub(r"^status: .*$", f"status: {status}", text, flags=_re.MULTILINE)
     full.write_text(text, encoding="utf-8")
     return {"path": path, "status": status}
+
+
+@app.get("/upload", response_class=HTMLResponse)
+async def upload_page(request: Request):
+    return templates.TemplateResponse(request, "upload.html", {})
+
+
+@app.post("/api/upload/notes")
+async def upload_notes(
+    file: UploadFile,
+    notetaker: str = Form(""),
+    slug: str = Form(""),
+):
+    fname = file.filename or ""
+    if not fname.lower().endswith((".md", ".txt")):
+        raise HTTPException(400, "File must be a .md or .txt file")
+
+    content = (await file.read()).decode("utf-8", errors="replace")
+
+    # Try to pull metadata from frontmatter
+    fm_meta: dict = {}
+    try:
+        fm_obj = _fm.loads(content)
+        fm_meta = {k: str(v) for k, v in fm_obj.metadata.items()}
+    except Exception:
+        pass
+
+    if not notetaker:
+        notetaker = fm_meta.get("notetaker", "unknown")
+
+    safe_notetaker = _re.sub(r"[^a-z0-9]", "-", notetaker.lower()).strip("-") or "unknown"
+
+    if not slug:
+        stem = _re.sub(r"\.(md|txt)$", "", fname, flags=_re.IGNORECASE)
+        stem = _re.sub(r"^notes-", "", stem, flags=_re.IGNORECASE)
+        slug = _re.sub(r"[^a-z0-9_-]", "-", stem.lower())
+        slug = _re.sub(r"-+", "-", slug).strip("-")
+        real_date = fm_meta.get("real_date", "")
+        if real_date and not slug.startswith(real_date):
+            slug = f"{real_date}_{slug}"
+
+    slug = _re.sub(r"[^a-z0-9_\-]", "", slug)
+    if not slug:
+        raise HTTPException(400, "Could not derive a session slug — provide one explicitly")
+
+    session_dir = CODEX_ROOT / "sessions" / slug
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    notes_path = session_dir / f"notes-{safe_notetaker}.md"
+    notes_path.write_text(content, encoding="utf-8")
+
+    indexer.reindex(CODEX_ROOT, DB_PATH)
+
+    return JSONResponse({"slug": slug, "path": f"sessions/{slug}"})
 
 
 @app.post("/api/reindex")

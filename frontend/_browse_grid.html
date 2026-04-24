@@ -66,7 +66,7 @@
 
   {% else %}
   {# ── Entity card (npc / location / item) ──────────────────────────────── #}
-  {% set all_tags = e.tags + ([e.allegiance] if e.allegiance else []) + e.locations_seen %}
+  {% set all_tags = e.tags + ([e.allegiance] if e.allegiance else []) + e.locations_seen + ([e.disposition] if e.disposition else []) %}
   <div class="entity-card" data-path="{{ e.path }}"
        data-tags="{{ all_tags | join(',') }}"
        data-allegiance="{{ e.allegiance }}">
@@ -76,6 +76,9 @@
     <a class="card-body" href="/entity?path={{ e.path }}">
       <div class="card-header">
         <span class="kind kind-{{ e.kind }}">{{ e.kind }}</span>
+        {% if e.disposition %}
+          <span class="disposition-badge disposition-{{ e.disposition }}">{{ e.disposition }}</span>
+        {% endif %}
         {% if e.status and e.status != 'active' %}
           <span class="status-badge status-{{ e.status }}">{{ e.status }}</span>
         {% endif %}
@@ -99,6 +102,16 @@
       <div class="card-meta">First seen {{ e.first_seen }}</div>
       {% endif %}
     </a>
+    {% if e.kind == 'npc' %}
+    <div class="card-disposition-row">
+      <button type="button" class="disp-btn disp-ally {% if e.disposition == 'ally' %}active{% endif %}"
+              onclick="setDisposition('{{ e.path }}', '{{ 'ally' if e.disposition != 'ally' else '' }}', this)">Ally</button>
+      <button type="button" class="disp-btn disp-enemy {% if e.disposition == 'enemy' %}active{% endif %}"
+              onclick="setDisposition('{{ e.path }}', '{{ 'enemy' if e.disposition != 'enemy' else '' }}', this)">Enemy</button>
+      <button type="button" class="disp-btn disp-recurring {% if e.disposition == 'recurring' %}active{% endif %}"
+              onclick="setDisposition('{{ e.path }}', '{{ 'recurring' if e.disposition != 'recurring' else '' }}', this)">Recurring</button>
+    </div>
+    {% endif %}
   </div>
   {% endif %}
 

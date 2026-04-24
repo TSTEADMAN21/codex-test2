@@ -406,6 +406,34 @@ details[open].notes-accordion > summary::before { content: '▼ '; }
   font-size: 0.8rem; color: var(--warn); border: 1px solid rgba(196,120,32,0.4);
   padding: 0.1rem 0.5rem; border-radius: 2px; font-style: italic;
 }
+
+/* ── Disposition badges + card buttons ───────────────────────────────── */
+.disposition-badge { font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 2px; font-family: 'Cinzel', serif; letter-spacing: 0.03em; }
+.disposition-ally     { background: rgba(40,120,60,0.2);  border: 1px solid rgba(40,180,80,0.35);  color: #6dbb80; }
+.disposition-enemy    { background: rgba(160,30,30,0.2);  border: 1px solid rgba(220,60,60,0.35);  color: #d07070; }
+.disposition-neutral  { background: rgba(80,80,80,0.2);   border: 1px solid rgba(140,140,140,0.3); color: #aaa; }
+.disposition-recurring{ background: rgba(80,60,160,0.2);  border: 1px solid rgba(120,100,200,0.35);color: #a090d0; }
+
+.card-disposition-row { display: flex; gap: 0.3rem; padding: 0.4rem 0.75rem 0.5rem; border-top: 1px solid rgba(106,84,24,0.2); margin-top: 0.25rem; }
+.disp-btn {
+  flex: 1; font-size: 0.7rem; padding: 0.15rem 0; border-radius: 2px; cursor: pointer;
+  background: none; border: 1px solid rgba(106,84,24,0.3); color: var(--muted);
+  font-family: 'Cinzel', serif;
+}
+.disp-btn:hover { border-color: var(--border); color: var(--text); }
+.disp-btn.disp-ally.active     { background: rgba(40,120,60,0.2);  border-color: rgba(40,180,80,0.5);  color: #6dbb80; }
+.disp-btn.disp-enemy.active    { background: rgba(160,30,30,0.2);  border-color: rgba(220,60,60,0.5);  color: #d07070; }
+.disp-btn.disp-recurring.active{ background: rgba(80,60,160,0.2);  border-color: rgba(120,100,200,0.5);color: #a090d0; }
+
+/* ── Merge dialog ────────────────────────────────────────────────────── */
+.merge-body { padding: 1rem; }
+.merge-intro { margin-bottom: 0.75rem; }
+.merge-keep-label { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; color: var(--text); font-size: 0.9rem; cursor: pointer; }
+.merge-keep-label input[type="radio"] { accent-color: var(--accent); }
+.merge-name-row { margin-top: 0.75rem; }
+.merge-name-input { width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--text); font-family: 'EB Garamond', serif; font-size: 0.9rem; padding: 0.3rem 0.6rem; border-radius: 3px; margin-top: 0.3rem; }
+.merge-name-input:focus { outline: none; border-color: var(--accent); }
+.merge-actions { margin-top: 1rem; }
 .entity-locations, .entity-carried-items, .entity-carried-by {
   display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem;
   margin: 0.4rem 0; font-size: 0.85rem;

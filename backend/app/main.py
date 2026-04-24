@@ -690,6 +690,95 @@ async def update_entity_status(payload: dict):
     return {"path": path, "status": status}
 
 
+_VALID_DISPOSITIONS = {"ally", "enemy", "neutral", "recurring", ""}
+
+
+@app.post("/api/entity/disposition")
+async def update_entity_disposition(payload: dict):
+    path = (payload.get("path") or "").strip()
+    disposition = (payload.get("disposition") or "").strip()
+    if disposition not in _VALID_DISPOSITIONS:
+        raise HTTPException(400, f"disposition must be one of {sorted(_VALID_DISPOSITIONS)}")
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
+        raise HTTPException(404, "entity not found")
+    text = full.read_text(encoding="utf-8")
+    if _re.search(r"^disposition:", text, flags=_re.MULTILINE):
+        text = _re.sub(r"^disposition: .*$", f"disposition: {disposition}", text, flags=_re.MULTILINE)
+    else:
+        # Insert after status line
+        text = _re.sub(r"^(status: .*)$", rf"\1\ndisposition: {disposition}", text, flags=_re.MULTILINE, count=1)
+    full.write_text(text, encoding="utf-8")
+    return {"path": path, "disposition": disposition}
+
+
+@app.post("/api/entity/merge")
+async def merge_entities(payload: dict):
+    """Merge one or more entity files into a canonical target."""
+    keep_path  = (payload.get("keep") or "").strip()
+    others     = [p.strip() for p in payload.get("others", []) if p.strip()]
+    canon_name = (payload.get("name") or "").strip()
+
+    if not keep_path or not others:
+        raise HTTPException(400, "keep and others are required")
+
+    keep_full = (CODEX_ROOT / keep_path).resolve()
+    if not str(keep_full).startswith(str(CODEX_ROOT.resolve())) or not keep_full.exists():
+        raise HTTPException(404, f"keep entity not found: {keep_path}")
+
+    keep_fm   = _fm.load(keep_full)
+    keep_sessions = list(_re.findall(r"[\w\-]+", str(keep_fm.get("sessions", "[]"))))
+    keep_aliases  = list(_re.findall(r"[\w\s\-']+", str(keep_fm.get("aliases", "[]"))))
+    keep_aliases  = [a.strip() for a in keep_aliases if a.strip()]
+    keep_body     = keep_fm.content
+
+    for other_path in others:
+        other_full = (CODEX_ROOT / other_path).resolve()
+        if not str(other_full).startswith(str(CODEX_ROOT.resolve())) or not other_full.exists():
+            continue
+        other_fm = _fm.load(other_full)
+        # Merge sessions
+        for s in _re.findall(r"[\w\-]+", str(other_fm.get("sessions", "[]"))):
+            if s and s not in keep_sessions:
+                keep_sessions.append(s)
+        # Add old name as alias
+        old_name = str(other_fm.get("name", other_full.stem)).strip()
+        if old_name and old_name not in keep_aliases and old_name != keep_fm.get("name", ""):
+            keep_aliases.append(old_name)
+        # Append appearances from other file
+        other_body = other_fm.content
+        in_app = False
+        app_lines: list[str] = []
+        for line in other_body.splitlines():
+            if line.startswith("## Appearances"):
+                in_app = True
+                continue
+            if line.startswith("## ") and in_app:
+                break
+            if in_app:
+                app_lines.append(line)
+        if app_lines:
+            keep_body = keep_body.rstrip("\n") + "\n\n" + "\n".join(app_lines).strip() + "\n"
+        other_full.unlink()
+
+    # Write merged file
+    final_name = canon_name or str(keep_fm.get("name", keep_full.stem))
+    sessions_yaml = _json.dumps(keep_sessions)
+    aliases_yaml  = _json.dumps(keep_aliases)
+
+    raw = keep_full.read_text(encoding="utf-8")
+    raw = _re.sub(r"^name: .*$",     f"name: {final_name}",       raw, flags=_re.MULTILINE)
+    raw = _re.sub(r"^sessions: .*$", f"sessions: {sessions_yaml}", raw, flags=_re.MULTILINE)
+    raw = _re.sub(r"^aliases: .*$",  f"aliases: {aliases_yaml}",   raw, flags=_re.MULTILINE)
+    # Replace body (everything after closing ---)
+    pre, _, _ = raw.partition("---\n\n")
+    fm_block = raw[:raw.index("---\n\n") + 5]
+    keep_full.write_text(fm_block + keep_body, encoding="utf-8")
+
+    indexer.reindex(CODEX_ROOT, DB_PATH)
+    return {"kept": keep_path, "merged": len(others), "name": final_name}
+
+
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_page(request: Request):
     return templates.TemplateResponse(request, "upload.html", {})

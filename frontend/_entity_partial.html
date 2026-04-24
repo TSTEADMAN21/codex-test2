@@ -10,6 +10,7 @@
     </h2>
     {% if role %}<span class="party-role">{{ role }}</span>{% endif %}
     {% if allegiance %}<span class="allegiance-badge">⚔ {{ allegiance }}</span>{% endif %}
+    {% if disposition %}<span class="disposition-badge disposition-{{ disposition }}">{{ disposition }}</span>{% endif %}
     {% if status and status not in ('active', 'open') %}
       <span class="status-badge status-{{ status }}">{{ status }}</span>
     {% endif %}

@@ -63,9 +63,31 @@
     <span class="selection-names" id="selection-names"></span>
     <div class="selection-actions">
       <button type="button" onclick="openCompare()">Compare</button>
+      <button type="button" onclick="openMerge()">⇢ Merge</button>
       <button type="button" class="btn-ghost" onclick="clearSelection()">Clear</button>
     </div>
   </div>
+
+  <!-- Merge dialog -->
+  <dialog class="compare-dialog" id="merge-dialog">
+    <div class="compare-toolbar">
+      <span class="compare-title">Merge Entities</span>
+      <button type="button" class="btn-ghost" onclick="document.getElementById('merge-dialog').close()">✕ Close</button>
+    </div>
+    <div class="merge-body">
+      <p class="muted merge-intro">Choose which entry to keep as canonical. The others will be merged into it and deleted.</p>
+      <div id="merge-keep-options"></div>
+      <div class="merge-name-row">
+        <label class="upload-label" for="merge-canon-name">Canonical name (optional — leave blank to keep existing)</label>
+        <input type="text" id="merge-canon-name" class="merge-name-input" placeholder="e.g. Trollskull Manor">
+      </div>
+      <div class="edit-actions merge-actions">
+        <button type="button" class="btn-primary" onclick="confirmMerge()">✦ Merge</button>
+        <button type="button" class="btn-ghost" onclick="document.getElementById('merge-dialog').close()">Cancel</button>
+        <span class="edit-status" id="merge-status"></span>
+      </div>
+    </div>
+  </dialog>
 
   <!-- Compare dialog -->
   <dialog class="compare-dialog" id="compare-dialog">
@@ -155,6 +177,63 @@
         grid.appendChild(hdr);
         group.forEach(c => grid.appendChild(c));
       });
+    }
+
+    // ── Disposition ───────────────────────────────────────────────────────────
+    async function setDisposition(path, disposition, btn) {
+      const resp = await fetch('/api/entity/disposition', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path, disposition}),
+      });
+      if (!resp.ok) { alert('Failed to update disposition'); return; }
+      const html = await fetch(`/browse/grid?kind=${currentKind}`).then(r => r.text());
+      document.getElementById('grid-area').innerHTML = html;
+      buildTagFilter();
+      if (allegianceGrouped) renderAllegianceGroups();
+    }
+
+    // ── Merge ─────────────────────────────────────────────────────────────────
+    function openMerge() {
+      if (selected.size < 2) { alert('Select at least 2 entities to merge'); return; }
+      const opts = document.getElementById('merge-keep-options');
+      opts.innerHTML = '';
+      [...selected.entries()].forEach(([path, name], i) => {
+        const lbl = document.createElement('label');
+        lbl.className = 'merge-keep-label';
+        lbl.innerHTML = `<input type="radio" name="merge-keep" value="${path}" ${i === 0 ? 'checked' : ''}> ${name}`;
+        opts.appendChild(lbl);
+      });
+      document.getElementById('merge-canon-name').value = '';
+      document.getElementById('merge-status').textContent = '';
+      document.getElementById('merge-dialog').showModal();
+    }
+
+    async function confirmMerge() {
+      const keepEl = document.querySelector('input[name="merge-keep"]:checked');
+      if (!keepEl) return;
+      const keep   = keepEl.value;
+      const others = [...selected.keys()].filter(p => p !== keep);
+      const name   = document.getElementById('merge-canon-name').value.trim();
+      const status = document.getElementById('merge-status');
+      status.textContent = '…merging';
+
+      const resp = await fetch('/api/entity/merge', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({keep, others, name}),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        status.textContent = '✗ ' + (err.detail || resp.statusText);
+        return;
+      }
+      const result = await resp.json();
+      document.getElementById('merge-dialog').close();
+      clearSelection();
+      const html = await fetch(`/browse/grid?kind=${currentKind}`).then(r => r.text());
+      document.getElementById('grid-area').innerHTML = html;
+      buildTagFilter();
     }
 
     // ── Thread status ─────────────────────────────────────────────────────────

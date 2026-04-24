@@ -110,6 +110,7 @@ def load(path: Path) -> dict:
     status = str(fm.get("status", "active"))
     role = str(fm.get("role") or "")
     allegiance = str(fm.get("allegiance") or "")
+    disposition = str(fm.get("disposition") or "")
     locations_seen = _parse_list_field(fm.get("locations_seen", []))
     carried_by = _parse_list_field(fm.get("carried_by", []))
     carried_items = _parse_list_field(fm.get("carried_items", []))
@@ -128,6 +129,7 @@ def load(path: Path) -> dict:
         "first_seen": first_seen,
         "status": status,
         "allegiance": allegiance,
+        "disposition": disposition,
         "locations_seen": locations_seen,
         "carried_by": carried_by,
         "carried_items": carried_items,

@@ -279,8 +279,15 @@ details[open] > .year-label .year-arrow { transform: rotate(90deg); }
 .summary-stream { white-space: pre-wrap; background: var(--panel); padding: 1rem; border-radius: 3px; border: 1px solid var(--border); font-family: 'EB Garamond', Georgia, serif; font-size: 0.95rem; color: var(--text); }
 
 .session-narration-section { margin: 1.5rem 0; }
-.narration-heading { display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-bottom: 1rem; }
+.narration-heading { display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-bottom: 1rem; flex-wrap: wrap; }
 .narration-heading h2 { margin: 0; font-size: 1.2rem; border: none; padding: 0; }
+.narration-controls { display: flex; align-items: center; gap: 0.6rem; margin-left: auto; flex-wrap: wrap; }
+.voice-select {
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  font-family: 'EB Garamond', serif; font-size: 0.82rem; padding: 0.2rem 0.5rem;
+  border-radius: 3px; cursor: pointer; max-width: 220px;
+}
+.voice-select:focus { outline: none; border-color: var(--accent); }
 .narration-btn { padding: 0.3rem 0.85rem; font-size: 0.8rem; }
 .narration-player { width: 100%; margin-top: 0.25rem; accent-color: var(--accent); }
 

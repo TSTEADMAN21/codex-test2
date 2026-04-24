@@ -53,16 +53,21 @@
   <section class="session-narration-section">
     <div class="narration-heading">
       <h2>Narration</h2>
-      <button type="button" class="narration-btn" id="narrate-btn" onclick="generateNarration()">
-        {{ '↺ Re-narrate' if has_narration else '🔊 Generate Narration' }}
-      </button>
+      <div class="narration-controls">
+        <select id="voice-select" class="voice-select" title="Narration voice">
+          <option value="">Loading voices…</option>
+        </select>
+        <button type="button" class="narration-btn" id="narrate-btn" onclick="generateNarration()">
+          {{ '↺ Re-narrate' if has_narration else '🔊 Generate Narration' }}
+        </button>
+      </div>
     </div>
     <div id="narration-area">
       {% if has_narration %}
       <audio id="narration-player" class="narration-player" controls
              src="/api/session/narration?path={{ path }}"></audio>
       {% else %}
-      <p class="muted" id="narration-placeholder">Click "Generate Narration" to create an audio reading of the summary.</p>
+      <p class="muted" id="narration-placeholder">Choose a voice and click "Generate Narration".</p>
       {% endif %}
     </div>
   </section>
@@ -100,16 +105,37 @@
   </footer>
 
   <script>
+    async function loadVoices() {
+      const sel = document.getElementById('voice-select');
+      if (!sel) return;
+      try {
+        const resp = await fetch('/api/voices');
+        const data = await resp.json();
+        sel.innerHTML = '';
+        for (const v of data.voices) {
+          const opt = document.createElement('option');
+          opt.value = v.id;
+          opt.textContent = v.label.replace('Microsoft ', '').replace(' Online (Natural)', '');
+          if (v.id === data.default) opt.selected = true;
+          sel.appendChild(opt);
+        }
+      } catch(e) {
+        sel.innerHTML = '<option value="en-US-GuyNeural">Guy (US)</option>';
+      }
+    }
+    loadVoices();
+
     async function generateNarration() {
       const btn = document.getElementById('narrate-btn');
       const area = document.getElementById('narration-area');
+      const voice = (document.getElementById('voice-select') || {}).value || '';
       btn.disabled = true;
       btn.textContent = '…generating';
 
       const resp = await fetch('/api/session/narrate', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({path: '{{ path }}'}),
+        body: JSON.stringify({path: '{{ path }}', voice}),
       });
 
       if (!resp.ok) {

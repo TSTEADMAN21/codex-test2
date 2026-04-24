@@ -317,10 +317,26 @@ async def summarize_session(payload: dict):
 
 NARRATION_VOICE = os.environ.get("NARRATION_VOICE", "en-US-GuyNeural")
 
+_VOICE_CACHE: list[dict] | None = None
+
+@app.get("/api/voices")
+async def list_voices():
+    global _VOICE_CACHE
+    if _VOICE_CACHE is None:
+        all_voices = await edge_tts.list_voices()
+        _VOICE_CACHE = [
+            {"id": v["ShortName"], "label": v["FriendlyName"]}
+            for v in all_voices
+            if v["Locale"].startswith("en-")
+        ]
+        _VOICE_CACHE.sort(key=lambda v: v["id"])
+    return {"voices": _VOICE_CACHE, "default": NARRATION_VOICE}
+
 
 @app.post("/api/session/narrate")
 async def narrate_session(payload: dict):
     path = (payload.get("path") or "").strip()
+    voice = (payload.get("voice") or NARRATION_VOICE).strip()
     full = (CODEX_ROOT / path).resolve()
     if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
         raise HTTPException(404, "session not found")
@@ -330,9 +346,9 @@ async def narrate_session(payload: dict):
         raise HTTPException(400, "no summary found — generate a summary first")
 
     narration_path = full / "narration.mp3"
-    communicate = edge_tts.Communicate(data["summary"], NARRATION_VOICE)
+    communicate = edge_tts.Communicate(data["summary"], voice)
     await communicate.save(str(narration_path))
-    return {"path": path, "ready": True}
+    return {"path": path, "ready": True, "voice": voice}
 
 
 @app.get("/api/session/narration")

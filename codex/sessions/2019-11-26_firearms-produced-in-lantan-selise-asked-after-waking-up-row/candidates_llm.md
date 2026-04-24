@@ -1,0 +1,331 @@
+---
+status: needs_review
+extractor: llm
+---
+
+# LLM Entity Candidates
+
+Each entity below was extracted by the local LLM and VERIFIED against the scene text (hallucinated entities without valid evidence quotes have been dropped). Check each box you want promoted into the canonical codex.
+
+### NPCs
+
+- [ ] **Rowin** (2 scenes)
+    - _A member of the party who is not very helpful._
+    - evidence (scene 1): "He says no. not too common. Selise jumps straight to killing the firearm wielder. Rowin is unhelpful, as there isn't anything she can do."
+- [ ] **Gororook** (2 scenes)
+    - _A member of the party who comes down stairs to ask about plans._
+    - evidence (scene 1): "Gororook comes down stairs, asks party about plans."
+- [ ] **Rishall** (2 scenes)
+    - _Owns a shop where Selise and Ivy go._
+    - evidence (scene 3): "Rishall walks out of is shop and brings ivy and selise in."
+- [ ] **Fala** (2 scenes)
+    - _Owns Falas Shoe, gets into an argument with Ivy about picketing._
+    - evidence (scene 3): "Ivy walks inside falas shoe. talks fala about someone looking into the shop."
+- [ ] **Vashra** (2 scenes)
+    - _A woman who works at Blackstaff Tower, examining a bullet for poison._
+    - evidence (scene 10): "Vashra is at her desk and greets us."
+- [ ] **Lif** (1 scene)
+    - _A person who sent an empty glass to Selise at the bar._
+    - evidence (scene 1): "lif sends her a glass. its empty."
+- [ ] **Ivy** (1 scene)
+    - _A member of the party who thinks they're getting close to restoring their place and has a necklace from Selise._
+    - evidence (scene 1): "ivy comes to sit next to selise at the bar. thinks they're getting close to restore place."
+- [ ] **Winfred the Cat** (1 scene)
+    - _A person Ivy is interested in, who might know her from a past life._
+    - evidence (scene 1): "ivy is interested in winfred the cat... doesn't know him, but Winfred might know her. might have known her from the past life."
+- [ ] **Mert (mEart)** (1 scene)
+    - _A person Ivy and Selise are considering double crossing._
+    - evidence (scene 1): "talk of double crossing Mert (mEart)"
+- [ ] **Austin** (1 scene)
+    - _A librarian at the Font of Knowledge who is unhelpful and lies about being busy._
+    - evidence (scene 4): "Selise wants to know if finding the specific books is included in the rate. Austin is lying about being really busy."
+- [ ] **Alston** (1 scene)
+    - _A librarian at the Font of Knowledge who is unhelpful and calls the city guard on Selise._
+    - evidence (scene 4): "ALSTON just points, second floor, ALSTON says that he's very busy and can't help Selise."
+- [ ] **Gnome** (1 scene)
+    - _A receptionist at the Font of Knowledge who introduces himself as Austin but is actually Alston._
+    - evidence (scene 4): "Lots of books, 3 floors with wooden balconies with TONS AND TONS of books. In reception area, gnome says good morning."
+- [ ] **City Watch Guard** (1 scene)
+    - _A guard who is called by Alston to chase Selise out of the library._
+    - evidence (scene 4): "city watch guard heads that way. Finds 1 book that talks about tons of different petrifications and steals the book."
+- [ ] **Vincent Trench** (1 scene)
+    - _A detective who may know of someone who can help._
+    - evidence (scene 5): "Vincent trench at detective."
+- [ ] **Bellof** (1 scene)
+    - _A bartender girl at the Skewered Dragon tavern._
+    - evidence (scene 6): "Lots of table waiting. Ale, meat, and seasalt smells."
+- [ ] **Elliandis** (1 scene)
+    - _A member of the party who is used as bait in a trap to catch an assassin._
+    - evidence (scene 6): "Ivy going to use elliands around the street. specifically by the maidens hammer."
+- [ ] **Selise** (1 scene)
+    - _A member of the party who is drunk and has a good view from a rooftop._
+    - evidence (scene 6): "Selise got up on roof with athletic 16 and stealth roll on 22."
+- [ ] **Barkeep woman** (1 scene)
+    - _A barkeep in the tavern where Elliandis and Ivy wait for midnight._
+    - evidence (scene 6): "Doesn't bring Ivy one since she looks like a child. starts raining really hard."
+- [ ] **dark elf** (1 scene)
+    - _has white hair and is wearing leather, with a pistol pointed at Elliandis._
+    - evidence (scene 7): "someone who has made a shot. Gor can't see it, Selise can make out, dark elf white hair, leather, pistol pointed at elliandis."
+- [ ] **bear** (1 scene)
+    - _A black bear that was charging at the party but panicked and fell prone after being covered in grease._
+    - evidence (scene 9): "There is a black bear that is charing right at us."
+- [ ] **Durnan** (1 scene)
+    - _An adventurer who can guide them into Undermountain and has freed a petrified friend._
+    - evidence (scene 11): "Selise talks to Drunan and he says you can go into the undermountain."
+- [ ] **Yagra** (1 scene)
+    - _A man with magenta hair who greets them at the Yawning Portal._
+    - evidence (scene 11): "In is Yagra and Elish looking man with magenta hair, Drunan, Bonnie."
+- [ ] **Davil Starsong** (1 scene)
+    - _A person who looks for opportunities and knows an alchemist in Skeema Weirdbottle._
+    - evidence (scene 11): "Yagra greets them, Davil Starsong he looks for opportunities."
+- [ ] **Ufima Elderberry** (1 scene)
+    - _A halfling female who owns Elderberries elixirs and has poison and blindness potions but no basilisk oil._
+    - evidence (scene 11): "She owns Elderberries elixirs.  She looks in the back and has poison, blindness but no basilisk oil but could put it on order"
+- [ ] **the gnomish man** (1 scene)
+    - _He has dark hair cut and swooping to the side, icy blue eyes, wearing purple trousers and a yellow cape and tan tunic._
+    - evidence (scene 12): "He has dark hair cut and swooping to the side, icy blue eyes, wearing purple trousers and a yellow cape and tan tunic."
+- [ ] **god-catcher statue** (1 scene)
+    - _A statue of a god with its left leg stuck in the street, trying to get up._
+    - evidence (scene 13): "We make our way to the god-catcher statue that has a dramatic pose reaching up and he is holding an orb."
+- [ ] **Mert** (1 scene)
+    - _A person mentioned as someone to talk with about basilisk oil._
+    - evidence (scene 14): "The party discusses if we should talk with Mert about, the basilisk oil."
+
+### Locations
+
+- [ ] **Yawning Portal** (2 scenes)
+    - _A tavern where Selise, Rowin, and Ivy meet Yagra and Davil Starsong._
+    - evidence (scene 11): "Selise, Rowin and Ivy go to the yawning portal."
+- [ ] **Bar** (1 scene)
+    - _A location where Selise and Ivy sit at the bar._
+    - evidence (scene 1): "selise goes to the bar, where lif sends her a glass. its empty."
+- [ ] **Fala's Shoe** (1 scene)
+    - _A shoe store owned by Fala, where Ivy goes to talk._
+    - evidence (scene 3): "Ivy walks inside falas shoe. talks fala about someone looking into the shop."
+- [ ] **Rishall's Shop** (1 scene)
+    - _A shop owned by Rishall, where Selise and Ivy go._
+    - evidence (scene 3): "Rishall walks out of is shop and brings ivy and selise in."
+- [ ] **The shop** (1 scene)
+    - _A place where Ivy meets Fala and buys rare items._
+    - evidence (scene 4): "In the shop, she throws her sign into the foliage, and it sinks into the ground."
+- [ ] **Castle ward** (1 scene)
+    - _An area of Waterdeep where Selise goes after leaving the shop._
+    - evidence (scene 4): "Selise leaves to go into the castle ward."
+- [ ] **Font of Knowledge** (1 scene)
+    - _A library with a large collection of books, including those about petrification and basalisc._
+    - evidence (scene 4): "Overtaken my smell of musty books and burning candle. SUPER dark, chandeliers and lights all over."
+- [ ] **Dark alley** (1 scene)
+    - _A narrow passage where Selise hides from the city watch guard._
+    - evidence (scene 4): "Selise darts into dark alley, stealth check of 13."
+- [ ] **Trollskull** (1 scene)
+    - _A location where Selise is headed, possibly an inn or tavern._
+    - evidence (scene 5): "Selise makes her way back to trollskull."
+- [ ] **Taproom** (1 scene)
+    - _A part of Trollskull where Ivy and others are sitting._
+    - evidence (scene 5): "No one is in taproom other than IVY."
+- [ ] **Lantan** (1 scene)
+    - _A place that is a full 10 days away from Waterdeep, and has mostly gnomes and humans living there._
+    - evidence (scene 6): "Lantan is a full 10 day away. is a pretty racist place against non lantinese."
+- [ ] **Rowin's room** (1 scene)
+    - _A location where Selise goes to talk to Rowin._
+    - evidence (scene 6): "Selise goes into Rowin's room."
+- [ ] **Rishall's place** (1 scene)
+    - _A location where Ivy talks to Rishall about the wildbark idea._
+    - evidence (scene 6): "Ivy goes to Rishall's and tell him about the wildbark."
+- [ ] **Skewered Dragon tavern** (1 scene)
+    - _A tavern where the party eats dinner and plays cards with Sark the sailor._
+    - evidence (scene 6): "Lots of random clients. Half ork pouring ales quickly. Bellof (bartender girl) doing lots of table waiting."
+- [ ] **Maiden's Hammer** (1 scene)
+    - _A location where Elliandis and Ivy wait for midnight, near the dock._
+    - evidence (scene 6): "Find the maidens hammer written on the ship. Maidens hammer by the dock, small tavern close by."
+- [ ] **Warehouse 1 and 2** (1 scene)
+    - _Locations where Rowin sets a trap to catch an assassin._
+    - evidence (scene 6): "Rowin takes the middle of warehouse 1 and 2 and uses snare."
+- [ ] **alley** (1 scene)
+    - _where the party is walking towards a manhole_
+    - evidence (scene 7): "As they walk towards the alley,"
+- [ ] **manhole** (1 scene)
+    - _a location near which the party hears a click and a shot_
+    - evidence (scene 7): "toward the manhole we hear a click, and a shot."
+- [ ] **dock ward** (1 scene)
+    - _One of the wards in Waterdeep, still active even at night._
+    - evidence (scene 9): "No issues in dock ward."
+- [ ] **trade ward** (1 scene)
+    - _A ward in Waterdeep with levels on levels of shops illuminated by fairy fire._
+    - evidence (scene 9): "The trade ward is still active even at this time of night."
+- [ ] **Northward** (1 scene)
+    - _A ward in Waterdeep whose residents are asleep at this time of night._
+    - evidence (scene 9): "We make our way to the Northward"
+- [ ] **Trollskoll** (1 scene)
+    - _A location where the party is staying, with a large animal living there._
+    - evidence (scene 10): "We are back at Trollskoll."
+- [ ] **Blackstaff Tower** (1 scene)
+    - _An institution in Waterdeep where Vashra works._
+    - evidence (scene 10): "The guards know us usher us inside. Vashra is at her desk and greets us."
+- [ ] **Undermountain** (1 scene)
+    - _A place where one can go with Durnan's guidance._
+    - evidence (scene 11): "Selise talks to Drunan and he says you can go into the undermountain."
+- [ ] **Trade Ward** (1 scene)
+    - _A ward in Waterdeep where Gororook and Elliandis look for alchemists._
+    - evidence (scene 11): "Gor. and Eli. go to the trade ward to see about buying basilisk oil."
+- [ ] **WeirdBottles concoctions** (1 scene)
+    - _It is dimly lit as we look in and it smells._
+    - evidence (scene 12): "We arrive a WeirdBottles concoctions the sign above is in common and gnomish."
+- [ ] **the castle ward** (1 scene)
+    - _under God catcher statue_
+    - evidence (scene 12): "He has 4 potions of mind reading to patrons in under God catcher statue in the castle ward."
+- [ ] **the street** (1 scene)
+    - _The location of the god-catcher statue's stuck leg._
+    - evidence (scene 13): "It seems like it is trying to get itself up. You can make out the pattern of bird dropping that looks like tears."
+- [ ] **Trollskoll manor** (1 scene)
+    - _A location where the party decides to go back to._
+    - evidence (scene 14): "We decide to go back to Trollskoll manor."
+- [ ] **the shop** (1 scene)
+    - _A location where the party gets gold and basilisk oil._
+    - evidence (scene 14): "We head back to the shop and get the gold and the basilisk oil."
+
+### Items
+
+- [ ] **Necklace** (1 scene)
+    - _A necklace made of dark metal material with a crystalized red tear drop that Selise gave to Ivy._
+    - evidence (scene 1): "ivy has a necklace from selise, that was heated up."
+- [ ] **Duskwood Scrolls** (1 scene)
+    - _A type of scroll that Rishall sells, which Fala protests against._
+    - evidence (scene 3): "Fala comes back to do more picketing. Ivy and Selsise goes outside, Rishall complains as they walk outside."
+- [ ] **Book about petrifications and basalisc** (1 scene)
+    - _A book that contains information about different types of petrification and basalisc._
+    - evidence (scene 4): "Finds 1 book that talks about tons of different petrifications and steals the book."
+- [ ] **Potion of animal friendship** (1 scene)
+    - _A potion that allows the drinker to communicate with animals._
+    - evidence (scene 4): "Ivy asks if there's any cool thing for adventurers, stock of potions in the back Fala thinks about the stock. 1 potion animal friend ship,"
+- [ ] **Book** (1 scene)
+    - _A book detailing the effects of petrification, written in common._
+    - evidence (scene 5): "Selise opens book to check to see what it is. She opens it in front of IVY."
+- [ ] **Wildbark** (1 scene)
+    - _A potion idea that Ivy presents to Rishall, which he thinks is pedestrian._
+    - evidence (scene 6): "Ivy goes to Rishall's and tell him about the wildbark."
+- [ ] **Smoke powder** (1 scene)
+    - _A magical substance used in guns, which can be rendered inert with a dispel magic spell._
+    - evidence (scene 6): "Ivy ask if there's anything that can render it inert. (Rowin arcana check 23)"
+- [ ] **pistol** (1 scene)
+    - _held by the dark elf with white hair_
+    - evidence (scene 7): "dark elf white hair, leather, pistol pointed at elliandis."
+- [ ] **grease** (1 scene)
+    - _Used by Rowin to panic the bear and cause it to fall prone._
+    - evidence (scene 9): "Rowin threw down grease and the bear panics and hits the grease and it slides and falls prone."
+- [ ] **the bullet** (1 scene)
+    - _A projectile that has been poisoned, examined by Vashra._
+    - evidence (scene 10): "Rowin gives her a bullet to examine."
+- [ ] **the firearm** (1 scene)
+    - _An object that Rowin does not want to give to Vashra._
+    - evidence (scene 10): "He tries to get her to keep it by deceiving her but fails."
+- [ ] **Basilisk oil** (1 scene)
+    - _A substance that can be used for hunting basilisks, available from Ufima Elderberry in 3-10 days._
+    - evidence (scene 11): "She also mentions perists in the temples. Or a mage but they tend to be erratic."
+- [ ] **Basilisk juice** (1 scene)
+    - _A substance that Vashra knows about, possibly expensive._
+    - evidence (scene 11): "Selise talks to Vashra about the basilisk juice."
+- [ ] **basilisk oil to pure petrification** (1 scene)
+    - _the going rate is 300 dragons_
+    - evidence (scene 12): "He says that it is 300 dragons for the going rate."
+- [ ] **4 potions of mind reading** (1 scene)
+    - _to patrons in under God catcher statue in the castle ward_
+    - evidence (scene 12): "He has 4 potions of mind reading to patrons in under God catcher statue in the castle ward."
+- [ ] **elven boots** (1 scene)
+    - _A pair of elven boots taken by Ivy._
+    - evidence (scene 13): "Ivy takes the elven boots."
+- [ ] **10 platinum suns** (1 scene)
+    - _A large sum of money, equivalent to 100 dragons._
+    - evidence (scene 13): "There are 10 platinum sun. 1 sun = 10 dragons."
+- [ ] **gold** (1 scene)
+    - _An item obtained from the shop._
+    - evidence (scene 14): "We head back to the shop and get the gold and the basilisk oil."
+- [ ] **basilisk oil** (1 scene)
+    - _An item obtained from the shop._
+    - evidence (scene 14): "We head back to the shop and get the gold and the basilisk oil."
+
+### Events
+
+- [ ] **Scene 1:** Selise and Ivy discuss their plans for the day, including talking to Filafaleer and visiting the library.
+    - evidence: "selise going to talk to the library, filafaleer for ivy. everyone going to come back to trollskull manner after their day is over."
+- [ ] **Scene 1:** Rowin goes back to his workshop after seeing the rest of the party leave.
+    - evidence: "rowin finally comes downstairs as everyone else is leaving. upon seeing this, rowin goes back to his workshop."
+- [ ] **Scene 2:** Ivy found the door of Filalfaleer's shop locked and couldn't see inside.
+    - evidence: "she looks to see if she can see anything inside."
+- [ ] **Scene 3:** Ivy tries to persuade Fala to stop picketing by rolling a persuasion check.
+    - evidence: "Ivy still wants Fala to stop being dramatic "if you can't come up with a solution, we need you to STOP PICKETING" ivy rolls persuasion 19."
+- [ ] **Scene 3:** Rishall complains about the picketing and suggests that if it stops, he might give them a favor.
+    - evidence: "He's complaining about her protesting. If they can get the protest to stop, then they might get a favor from him."
+- [ ] **Scene 4:** Selise meets with Fala in a shop and buys rare items.
+    - evidence: "In the shop, she throws her sign into the foliage, and it sinks into the ground. Selise leaves to go into the castle ward."
+- [ ] **Scene 4:** Ivy talks to Fala about celestial unicorns and basalisc in a shop.
+    - evidence: "Fala doesn't know anyone that would want to petrify a unicorn. "Only a sick game or a terrible hater against nature"-fala."
+- [ ] **Scene 4:** Selise tries to sneak into the Font of Knowledge and steal a book about petrification.
+    - evidence: "Lots of books, 3 floors with wooden balconies with TONS AND TONS of books. In reception area, gnome says good morning."
+- [ ] **Scene 4:** Selise disguises herself as a male elf and escapes from the city watch guard in a dark alley.
+    - evidence: "She escaped them!"
+- [ ] **Scene 5:** The party discusses information sharing and potential leads with Vincent Trench.
+    - evidence: "Conversation begins about info sharing. Mr. Trench may know of someone."
+- [ ] **Scene 6:** The party eats dinner at the Skewered Dragon tavern and plays cards with Sark the sailor.
+    - evidence: "Lots of random clients. Half ork pouring ales quickly. Bellof (bartender girl) doing lots of table waiting."
+- [ ] **Scene 6:** Ivy presents her wildbark idea to Rishall, who thinks it's pedestrian.
+    - evidence: "Ivy goes to Rishall's and tell him about the wildbark. Walk into the door to talk with him."
+- [ ] **Scene 6:** The party plans to use Elliandis as bait in a trap to catch an assassin.
+    - evidence: "Planning on where people will be Selise will find a good roof to look. Ivy going to use elliands around the street."
+- [ ] **Scene 7:** The party hears a click and a shot coming from near the manhole.
+    - evidence: "toward the manhole we hear a click, and a shot."
+- [ ] **Scene 7:** Selise and Ivy can see a dark elf with white hair pointing a pistol at Elliandis.
+    - evidence: "Gor can't see it, Selise can make out, dark elf white hair, leather, pistol pointed at elliandis."
+- [ ] **Scene 9:** The party encountered a black bear that was trying to escape from containment, but was calmed down by Elli and persuaded to come with them.
+    - evidence: "Ell. talks with the bear and clams it down and she sees a cage and feels panic."
+- [ ] **Scene 10:** The party gives food to the bear and it falls asleep in Gororook's room.
+    - evidence: "Gor. beckons him to his room and gives him all the meat that he had for three days worth of food."
+- [ ] **Scene 11:** The party discusses hunting a basilisk in Underdark or Chult.
+    - evidence: "Party meets outside, talk about the options of hunting down a basilisk. Underdark vs. Chult."
+- [ ] **Scene 11:** Gororook and Elliandis go to the Trade Ward to look for alchemists.
+    - evidence: "Gor. and Eli. go to the trade ward to see about buying basilisk oil."
+- [ ] **Scene 11:** Selise talks to Durnan about going into Undermountain.
+    - evidence: "Selise talks to Drunan and he says you can go into the undermountain."
+- [ ] **Scene 12:** The group converses about if they should take a delivery job or not.
+    - evidence: "The group converses about if we should take the job or not."
+- [ ] **Scene 12:** Ivy stays outside while the rest of the party talks with the gnomish man.
+    - evidence: "Ivy seems to know that something sounds suspicious.  And a couple extra gold if we deliver."
+- [ ] **Scene 13:** The party arrives at the Yawning Portal and encounters a cloaked woman driving a nobles stagecoach.
+    - evidence: "We make our way to the god-catcher statue that has a dramatic pose reaching up and he is holding an orb."
+- [ ] **Scene 14:** The party decides to go back to Trollskoll manor.
+    - evidence: "We decide to go back to Trollskoll manor."
+- [ ] **Scene 14:** Newsboys throw a Waterdeep Wazoo with front page news about 4 nobles found poisoned at dinner.
+    - evidence: "Newsboys throw a Waterdeep Wazoo, Gaxly Ruddlybust, the front page news for today is 4 nobles found poisoned at dinner."
+
+### Plot Threads Opened
+
+- [ ] **Scene 1:** The party wants to restore their place and needs more money for it.
+- [ ] **Scene 1:** Ivy is interested in Winfred the Cat, who might know her from a past life.
+- [ ] **Scene 3:** The party needs to find a solution to reverse the unicorn transformation or turn it back into its original form.
+- [ ] **Scene 3:** The party needs to get a favor from Rishall in exchange for stopping the picketing.
+- [ ] **Scene 4:** The party is searching for information about petrification and basalisc, and Selise tries to steal a book about it.
+- [ ] **Scene 5:** The party considers killing a Basalic to obtain its saliva, which could be used as a cheaper alternative to mages.
+- [ ] **Scene 6:** The party plans to use Elliandis as bait in a trap to catch an assassin.
+- [ ] **Scene 7:** The party must deal with the threat of the dark elf pointing a pistol at Elliandis.
+- [ ] **Scene 9:** The bear is trying to get out of containment, possibly indicating a larger issue with its captivity.
+- [ ] **Scene 10:** The party wants to find out who took Ander Antellion, a Waterdeep Urchin.
+- [ ] **Scene 10:** Vashra mentions Coralone Merashne as a potential 'dark lady'.
+- [ ] **Scene 12:** The client will tip when they deliver, and they get to keep half of the tip.
+- [ ] **Scene 13:** The party is trying to figure out why the cloaked woman's stagecoach was a nobles stagecoach.
+- [ ] **Scene 14:** The party considers talking with Mert about basilisk oil.
+
+## Disguise / pseudonym alerts
+
+**DO NOT** promote these as aliases.
+
+- Scene 4: "Ander" used by Selise — evidence: "Ander taught her the disguise spell. Warmth. Same hair, same clothes (more male) same height, pointy ears."
+- Scene 6: "Rose" used by Ivy — evidence: "We use our names Rose and Bororook as a lie."
+- Scene 6: "Bororook" used by Gororook — evidence: "We use our names Rose and Bororook as a lie."
+
+## Diagnostics
+
+- Dropped 26 hallucination(s) (evidence quote not found in scene)
+- 1 scene(s) failed to parse
+    - scene 8 (Surprise round Longbow for selise shoots): pydantic validation failed: 1 validation error for SceneExtraction
+npcs.1.evidence_quote
+  Field required [type=missing,

@@ -1,0 +1,22 @@
+# All-in-one stack: FastAPI + Ollama + pre-pulled model, in one container.
+# Slower than the default compose.yml (CPU-only inference), but zero host
+# setup needed beyond Docker.
+services:
+  codex:
+    build:
+      context: .
+      dockerfile: Dockerfile.bundled
+      args:
+        OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+    container_name: adventure-codex-bundled
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./codex:/app/codex
+      - ./data:/app/data
+      - ./raw-notes:/app/raw-notes
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama-models:

@@ -1,0 +1,51 @@
+# All-in-one image: the codex app + Ollama + model in a single container.
+#
+# Use this when portability matters more than speed (e.g. running on a host
+# without Ollama pre-installed). The regular Dockerfile/docker-compose.yml is
+# faster on Apple Silicon because it reaches out to host Ollama with Metal.
+FROM python:3.12-slim
+
+ARG OLLAMA_MODEL=llama3.1:8b
+ENV OLLAMA_MODEL=${OLLAMA_MODEL}
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Ollama.
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
+WORKDIR /app
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir \
+    "fastapi>=0.115" \
+    "uvicorn[standard]>=0.32" \
+    "python-frontmatter>=1.1" \
+    "pydantic>=2.9" \
+    "httpx>=0.27" \
+    "jinja2>=3.1" \
+    "eval_type_backport>=0.2"
+
+COPY backend ./backend
+COPY frontend ./frontend
+COPY scripts ./scripts
+
+ENV PYTHONPATH=/app/backend
+ENV OLLAMA_URL=http://127.0.0.1:11434
+ENV CODEX_ROOT=/app/codex
+ENV CODEX_DB=/app/data/codex.db
+
+# Pre-pull the model during build so the image is truly self-contained.
+# This makes the image large (~5 GB) but means first-run has no download.
+RUN ollama serve & \
+    SERVE_PID=$! && \
+    sleep 3 && \
+    ollama pull ${OLLAMA_MODEL} && \
+    kill $SERVE_PID
+
+EXPOSE 8000
+
+# Start Ollama in the background, then the web app in the foreground.
+CMD bash -c "ollama serve & \
+    sleep 3 && \
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir /app/backend"

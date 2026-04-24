@@ -24,52 +24,59 @@ These are next — the scaffold is designed to extend cleanly.
 
 ---
 
-## Quickstart (local Python, simplest path)
+## Quickstart — pick one
 
-Requires Python 3.11+. No Docker needed.
+Three run paths, ordered from simplest to most portable.
+
+### Path A: One-command setup (recommended for first run on any host)
 
 ```bash
-cd ~/Documents/adventure-codex
+./scripts/setup.sh
+```
 
-python3.12 -m venv .venv
+Detects your OS, installs Ollama if missing, pulls `llama3.1:8b`, creates a Python venv, installs dependencies, and builds the search index. Works on macOS and Linux. On Windows, run it from WSL or Git Bash.
+
+Then:
+```bash
 source .venv/bin/activate
-pip install -e .
-
-# Optional but recommended: install Ollama for free local Q&A.
-# https://ollama.com/download (or: brew install ollama)
-ollama pull llama3.1:8b
-ollama serve &  # starts the Ollama HTTP API on :11434
-
-# Ingest the sample session notes.
-python scripts/ingest.py raw-notes/testing.txt --notetaker travis
-
-# Build the search index.
-python -c "from pathlib import Path; from app import indexer; print(indexer.reindex(Path('codex'), Path('data/codex.db')), 'documents indexed')"
-
-# Serve the UI.
 uvicorn app.main:app --app-dir backend --reload
 # open http://localhost:8000
 ```
 
-The search box works without Ollama. The "Ask" section requires Ollama running.
+### Path B: Docker with host Ollama (faster — uses your GPU)
 
-## Quickstart (Docker, portable path)
-
-Run the backend in a container; Ollama stays on the host (faster, uses your GPU).
+Ollama runs on the host, the web app runs in a container. On Apple Silicon this uses Metal inference (fast).
 
 ```bash
-# One-time: install + pull on host.
 brew install ollama                 # macOS
 ollama pull llama3.1:8b
 ollama serve &
-
-# Build and run the web app.
 docker compose up --build
 ```
 
-The container reaches host Ollama via `host.docker.internal:11434`. On Linux the `extra_hosts` entry in `docker-compose.yml` handles that; on macOS and Windows Docker Desktop provides it natively.
+### Path C: Docker all-in-one (slowest, most portable)
 
-To expose the app to your D&D party, install [Tailscale](https://tailscale.com/) on the host and on each party member's device, and share `http://<host-tailscale-name>:8000` — no port-forwarding, no auth bolt-on.
+Ollama + the model are baked into the container image. Larger image (~5 GB, because the model is pre-pulled at build time), slower inference (CPU-only), but zero host setup beyond Docker. Good for a weak laptop, a cheap VPS, or anywhere you don't want to install Ollama separately.
+
+```bash
+docker compose -f docker-compose.bundled.yml up --build
+```
+
+The first `build` will take 10–15 minutes (downloads + bakes in the model). After that `up` is fast.
+
+---
+
+## Ingesting notes after setup
+
+```bash
+source .venv/bin/activate
+python scripts/ingest.py raw-notes/testing.txt --notetaker travis          # heuristic (instant)
+python scripts/ingest.py raw-notes/testing.txt --notetaker travis --use-llm  # LLM (5+ min, far better)
+```
+
+## Sharing with your party
+
+Install [Tailscale](https://tailscale.com/) on the host machine and on each party member's device. Share `http://<host-tailscale-name>:8000` — no port-forwarding, no auth setup needed, all traffic is encrypted through the Tailscale mesh.
 
 ---
 

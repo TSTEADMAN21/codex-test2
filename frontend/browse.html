@@ -44,13 +44,17 @@
     </button>
   </div>
 
-  <!-- Tag filter bar — hidden until tags exist -->
-  <div class="tag-filter-bar" id="tag-filter-bar" hidden>
-    <span class="tag-filter-label">Filter</span>
-    <div class="tag-filter-pills" id="tag-filter-pills"></div>
-    <button type="button" class="tag-pill tag-pill-clear" id="tag-filter-clear" onclick="clearTagFilter()" hidden>
-      Clear filter
-    </button>
+  <!-- Tag filter bar -->
+  <div class="tag-filter-bar" id="tag-filter-bar">
+    <div class="tag-filter-active" id="tag-filter-pills"></div>
+    <div class="tag-add-wrap" id="tag-add-wrap">
+      <button type="button" class="tag-add-btn" id="tag-add-btn" onclick="toggleTagPicker()">+ Filter</button>
+      <div class="tag-picker" id="tag-picker" hidden>
+        <input type="text" class="tag-picker-search" id="tag-picker-search" placeholder="Search tags…" oninput="filterTagPicker(this.value)" autocomplete="off">
+        <div class="tag-picker-list" id="tag-picker-list"></div>
+      </div>
+    </div>
+    <button type="button" class="tag-clear-btn" id="tag-filter-clear" onclick="clearTagFilter()" hidden>✕ Clear</button>
   </div>
 
   <div id="grid-area">
@@ -251,66 +255,113 @@
 
     // ── Tag filter ────────────────────────────────────────────────────────────
     let activeTags = new Set();
+    let allAvailableTags = [];
 
     function buildTagFilter() {
-      const bar = document.getElementById('tag-filter-bar');
-      const pills = document.getElementById('tag-filter-pills');
-      pills.innerHTML = '';
       activeTags.clear();
-
-      const allTags = new Set();
+      allAvailableTags = [];
+      const seen = new Set();
       document.querySelectorAll('.entity-card[data-tags]').forEach(card => {
-        card.dataset.tags.split(',').forEach(t => { if (t.trim()) allTags.add(t.trim()); });
+        card.dataset.tags.split(',').forEach(t => {
+          const tag = t.trim();
+          if (tag && !seen.has(tag)) { seen.add(tag); allAvailableTags.push(tag); }
+        });
       });
+      allAvailableTags.sort();
+      document.getElementById('tag-filter-pills').innerHTML = '';
+      document.getElementById('tag-filter-clear').hidden = true;
+      document.getElementById('tag-picker').hidden = true;
+      document.getElementById('tag-picker-list').innerHTML = '';
+    }
 
-      if (allTags.size === 0) {
-        bar.hidden = true;
+    function toggleTagPicker() {
+      const picker = document.getElementById('tag-picker');
+      picker.hidden = !picker.hidden;
+      if (!picker.hidden) {
+        renderTagPickerList('');
+        document.getElementById('tag-picker-search').value = '';
+        document.getElementById('tag-picker-search').focus();
+      }
+    }
+
+    function renderTagPickerList(query) {
+      const list = document.getElementById('tag-picker-list');
+      const filtered = query
+        ? allAvailableTags.filter(t => t.toLowerCase().includes(query.toLowerCase()))
+        : allAvailableTags;
+      list.innerHTML = '';
+      if (!filtered.length) {
+        list.innerHTML = '<div class="tag-picker-empty">No tags found</div>';
         return;
       }
-
-      bar.hidden = false;
-      document.getElementById('tag-filter-clear').hidden = true;
-
-      [...allTags].sort().forEach(tag => {
+      filtered.forEach(tag => {
         const btn = document.createElement('button');
-        btn.className = 'tag-pill';
+        btn.type = 'button';
+        btn.className = 'tag-picker-item' + (activeTags.has(tag) ? ' active' : '');
         btn.textContent = tag;
-        btn.dataset.tag = tag;
-        btn.onclick = () => toggleTag(tag, btn);
-        pills.appendChild(btn);
+        btn.onclick = () => { selectTag(tag); renderTagPickerList(document.getElementById('tag-picker-search').value); };
+        list.appendChild(btn);
       });
     }
 
-    function toggleTag(tag, btn) {
+    function filterTagPicker(query) {
+      renderTagPickerList(query);
+    }
+
+    function selectTag(tag) {
       if (activeTags.has(tag)) {
         activeTags.delete(tag);
-        btn.classList.remove('active');
       } else {
         activeTags.add(tag);
-        btn.classList.add('active');
       }
-      document.getElementById('tag-filter-clear').hidden = activeTags.size === 0;
+      renderActivePills();
       applyTagFilter();
+    }
+
+    function removeTag(tag) {
+      activeTags.delete(tag);
+      renderActivePills();
+      applyTagFilter();
+      if (!document.getElementById('tag-picker').hidden) {
+        renderTagPickerList(document.getElementById('tag-picker-search').value);
+      }
+    }
+
+    function renderActivePills() {
+      const pills = document.getElementById('tag-filter-pills');
+      pills.innerHTML = '';
+      activeTags.forEach(tag => {
+        const pill = document.createElement('span');
+        pill.className = 'tag-active-pill';
+        pill.innerHTML = `${tag} <button type="button" onclick="removeTag('${tag.replace(/'/g,"\\'")}')">✕</button>`;
+        pills.appendChild(pill);
+      });
+      document.getElementById('tag-filter-clear').hidden = activeTags.size === 0;
     }
 
     function clearTagFilter() {
       activeTags.clear();
-      document.querySelectorAll('.tag-pill').forEach(p => p.classList.remove('active'));
-      document.getElementById('tag-filter-clear').hidden = true;
+      renderActivePills();
       applyTagFilter();
+      document.getElementById('tag-picker').hidden = true;
     }
 
     function applyTagFilter() {
       document.querySelectorAll('.entity-card').forEach(card => {
-        if (activeTags.size === 0) {
-          card.hidden = false;
-          return;
-        }
+        if (activeTags.size === 0) { card.hidden = false; return; }
         const cardTags = new Set(card.dataset.tags.split(',').map(t => t.trim()).filter(Boolean));
-        // OR logic: show card if it has any active tag
         card.hidden = ![...activeTags].some(t => cardTags.has(t));
       });
     }
+
+    // Close picker when clicking outside
+    document.addEventListener('click', e => {
+      const wrap = document.getElementById('tag-add-wrap');
+      if (wrap && !wrap.contains(e.target)) {
+        const picker = document.getElementById('tag-picker');
+        if (picker) picker.hidden = true;
+      }
+    });
 
     // ── Compare ───────────────────────────────────────────────────────────────
     async function openCompare() {

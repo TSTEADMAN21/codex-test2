@@ -405,9 +405,10 @@ details[open].notes-accordion > summary::before { content: '▼ '; }
 
 .entity-card {
   background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
-  display: flex; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s;
+  display: flex; flex-direction: column; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s;
   position: relative; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
+.entity-card-inner { display: flex; flex: 1; }
 .entity-card:hover { border-color: var(--accent); box-shadow: 0 0 12px rgba(244,216,72,0.18); }
 .entity-card:has(.card-checkbox:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(244,216,72,0.15); }
 
@@ -445,9 +446,9 @@ details[open].notes-accordion > summary::before { content: '▼ '; }
 .disposition-neutral  { background: rgba(80,80,80,0.2);   border: 1px solid rgba(140,140,140,0.3); color: #aaa; }
 .disposition-recurring{ background: rgba(80,60,160,0.2);  border: 1px solid rgba(120,100,200,0.35);color: #a090d0; }
 
-.card-disposition-row { display: flex; gap: 0.25rem; padding: 0.3rem 0.75rem 0.35rem; border-top: 1px solid rgba(106,84,24,0.15); margin-top: 0.25rem; flex-wrap: wrap; }
+.card-disposition-row { display: flex; gap: 0.25rem; padding: 0.25rem 0.75rem 0.3rem; border-top: 1px solid rgba(106,84,24,0.15); flex-wrap: wrap; }
 .disp-btn {
-  font-size: 0.62rem; padding: 0.05rem 0.4rem; border-radius: 2px; cursor: pointer;
+  font-size: 0.6rem; padding: 0.03rem 0.35rem; border-radius: 2px; cursor: pointer;
   background: none; border: 1px solid rgba(106,84,24,0.25); color: var(--muted);
   font-family: 'Cinzel', serif; white-space: nowrap; line-height: 1.4;
 }

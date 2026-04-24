@@ -70,38 +70,40 @@
   <div class="entity-card" data-path="{{ e.path }}"
        data-tags="{{ all_tags | join(',') }}"
        data-allegiance="{{ e.allegiance }}">
-    <label class="card-select-wrap">
-      <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name }}" onchange="updateSelection()">
-    </label>
-    <a class="card-body" href="/entity?path={{ e.path }}">
-      <div class="card-header">
-        <span class="kind kind-{{ e.kind }}">{{ e.kind }}</span>
-        {% if e.disposition %}
-          <span class="disposition-badge disposition-{{ e.disposition }}">{{ e.disposition }}</span>
+    <div class="entity-card-inner">
+      <label class="card-select-wrap">
+        <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name }}" onchange="updateSelection()">
+      </label>
+      <a class="card-body" href="/entity?path={{ e.path }}">
+        <div class="card-header">
+          <span class="kind kind-{{ e.kind }}">{{ e.kind }}</span>
+          {% if e.disposition %}
+            <span class="disposition-badge disposition-{{ e.disposition }}">{{ e.disposition }}</span>
+          {% endif %}
+          {% if e.status and e.status != 'active' %}
+            <span class="status-badge status-{{ e.status }}">{{ e.status }}</span>
+          {% endif %}
+          <span class="card-sessions">{{ e.sessions | length }} session{{ 's' if e.sessions | length != 1 }}</span>
+        </div>
+        <div class="card-name">{{ e.name }}</div>
+        {% if e.allegiance %}
+        <div class="card-allegiance">⚔ {{ e.allegiance }}</div>
         {% endif %}
-        {% if e.status and e.status != 'active' %}
-          <span class="status-badge status-{{ e.status }}">{{ e.status }}</span>
+        {% if e.description %}
+        <p class="card-desc">{{ e.description }}</p>
         {% endif %}
-        <span class="card-sessions">{{ e.sessions | length }} session{{ 's' if e.sessions | length != 1 }}</span>
-      </div>
-      <div class="card-name">{{ e.name }}</div>
-      {% if e.allegiance %}
-      <div class="card-allegiance">⚔ {{ e.allegiance }}</div>
-      {% endif %}
-      {% if e.description %}
-      <p class="card-desc">{{ e.description }}</p>
-      {% endif %}
-      {% if e.locations_seen %}
-      <div class="card-locations">
-        {% for loc in e.locations_seen[:3] %}
-        <span class="location-tag-sm">📍 {{ loc }}</span>
-        {% endfor %}
-      </div>
-      {% endif %}
-      {% if e.first_seen %}
-      <div class="card-meta">First seen {{ e.first_seen }}</div>
-      {% endif %}
-    </a>
+        {% if e.locations_seen %}
+        <div class="card-locations">
+          {% for loc in e.locations_seen[:3] %}
+          <span class="location-tag-sm">📍 {{ loc }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if e.first_seen %}
+        <div class="card-meta">First seen {{ e.first_seen }}</div>
+        {% endif %}
+      </a>
+    </div>
     {% if e.kind == 'npc' %}
     <div class="card-disposition-row">
       <button type="button" class="disp-btn disp-ally {% if e.disposition == 'ally' %}active{% endif %}"

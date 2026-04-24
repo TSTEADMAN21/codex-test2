@@ -82,29 +82,48 @@ def _parse_description(body: str) -> str:
     return "\n".join(lines).strip()
 
 
+def _parse_personal_storylines(body: str) -> list[str]:
+    """Parse bullet lines from ## Personal Storylines section."""
+    lines: list[str] = []
+    in_section = False
+    for line in body.splitlines():
+        if line.startswith("## Personal Storylines"):
+            in_section = True
+            continue
+        if line.startswith("## ") and in_section:
+            break
+        if in_section and line.strip().startswith("- "):
+            lines.append(line.strip()[2:].strip())
+    return lines
+
+
 def load(path: Path) -> dict:
     """Return a template-ready dict for an entity file."""
     fm = frontmatter.load(path)
 
     name = str(fm.get("name", path.stem.replace("-", " ").title()))
     kind = str(fm.get("type", "unknown"))
-    aliases = _parse_list_field(str(fm.get("aliases", "[]")))
-    tags = _parse_list_field(str(fm.get("tags", "[]")))
-    sessions = _parse_list_field(str(fm.get("sessions", "[]")))
+    aliases = _parse_list_field(fm.get("aliases", []))
+    tags = _parse_list_field(fm.get("tags", []))
+    sessions = _parse_list_field(fm.get("sessions", []))
     first_seen = str(fm.get("first_seen", ""))
     status = str(fm.get("status", "active"))
+    role = str(fm.get("role") or "")
 
     description = _parse_description(fm.content)
     appearances = _parse_appearances(fm.content)
+    personal_storylines = _parse_personal_storylines(fm.content)
 
     return {
         "name": name,
         "kind": kind,
+        "role": role,
         "aliases": aliases,
         "tags": tags,
         "sessions": sessions,
         "first_seen": first_seen,
         "status": status,
         "description": description,
+        "personal_storylines": personal_storylines,
         "appearances": appearances,
     }

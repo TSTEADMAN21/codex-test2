@@ -31,6 +31,10 @@
             class="tab-btn {% if kind == 'thread' %}active{% endif %}"
             hx-get="/browse/grid?kind=thread" hx-target="#grid-area" hx-swap="innerHTML"
             onclick="setActiveTab(this)">Plot Threads</button>
+    <button type="button" role="tab" data-kind="party"
+            class="tab-btn {% if kind == 'party' %}active{% endif %}"
+            hx-get="/browse/grid?kind=party" hx-target="#grid-area" hx-swap="innerHTML"
+            onclick="setActiveTab(this)">Party</button>
   </div>
 
   <!-- Tag filter bar — hidden until tags exist -->

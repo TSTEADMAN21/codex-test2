@@ -1,16 +1,35 @@
 <div class="entity-profile">
   <div class="entity-header">
-    <span class="kind kind-{{ kind }}">{{ kind }}</span>
+    {% if kind == 'party' %}
+      <span class="kind kind-party">PC</span>
+    {% else %}
+      <span class="kind kind-{{ kind }}">{{ kind }}</span>
+    {% endif %}
     <h2 class="entity-name">
       <a href="/entity?path={{ path }}">{{ name }}</a>
     </h2>
-    {% if status and status != 'active' %}
+    {% if role %}<span class="party-role">{{ role }}</span>{% endif %}
+    {% if status and status not in ('active', 'open') %}
       <span class="status-badge status-{{ status }}">{{ status }}</span>
+    {% endif %}
+    {% if kind == 'thread' %}
+      <span class="thread-status thread-status-{{ status }}">{{ status }}</span>
     {% endif %}
   </div>
 
   {% if description %}
   <p class="entity-description">{{ description }}</p>
+  {% endif %}
+
+  {% if personal_storylines %}
+  <div class="personal-storylines">
+    <h3>Personal Storylines</h3>
+    <ul class="storyline-list">
+      {% for s in personal_storylines %}
+      <li>{{ s }}</li>
+      {% endfor %}
+    </ul>
+  </div>
   {% endif %}
 
   <div class="entity-meta">

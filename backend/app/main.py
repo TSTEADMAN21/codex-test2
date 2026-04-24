@@ -55,7 +55,7 @@ def _db():
 async def index(request: Request):
     conn = _db()
     counts = {kind: len(db.list_documents(conn, kind))
-              for kind in ("session", "npc", "location", "item", "thread")}
+              for kind in ("session", "npc", "location", "item", "thread", "party")}
     conn.close()
     reachable = await ollama_client.is_reachable()
     return templates.TemplateResponse(request, "index.html", {
@@ -97,7 +97,7 @@ async def api_documents(kind: str | None = None):
         conn.close()
 
 
-_KIND_DIRS = {"npc": "npcs", "location": "locations", "item": "items", "thread": "plot-threads"}
+_KIND_DIRS = {"npc": "npcs", "location": "locations", "item": "items", "thread": "plot-threads", "party": "party"}
 
 
 def _load_entities_of_kind(kind: str) -> list[dict]:

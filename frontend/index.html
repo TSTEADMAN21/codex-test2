@@ -24,7 +24,7 @@
 
   <section class="counts">
     {% for kind, n in counts.items() %}
-      {% if kind in ('npc', 'location', 'item') %}
+      {% if kind in ('npc', 'location', 'item', 'party', 'thread') %}
         <a class="count-card count-card-link" href="/browse?kind={{ kind }}">
           <strong>{{ n }}</strong><span>{{ kind }}s</span>
         </a>

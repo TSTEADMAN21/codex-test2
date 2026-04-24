@@ -10,7 +10,7 @@
   <nav class="breadcrumb">
     <a href="/">← Codex</a>
     <span class="breadcrumb-sep">·</span>
-    <a href="/browse?kind={{ kind }}">{{ kind }}s</a>
+    <a href="/browse?kind={{ kind }}">{{ 'Party' if kind == 'party' else 'Plot Threads' if kind == 'thread' else kind + 's' }}</a>
   </nav>
 
   {% include "_entity_partial.html" %}

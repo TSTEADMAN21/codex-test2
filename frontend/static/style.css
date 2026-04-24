@@ -186,6 +186,25 @@ footer { margin-top: 3rem; text-align: center; }
 .compare-col .entity-name { font-size: 1.4rem; }
 .compare-col .appearances h3 { font-size: 1rem; }
 
+/* ── Kind colors ─────────────────────────────────────────────────────── */
+.kind-party { background: rgba(100,160,220,0.2); color: #7ab4e0; }
+
+/* ── Party cards ─────────────────────────────────────────────────────── */
+.party-card { border-left: 3px solid #7ab4e0; }
+.party-card:hover { border-color: #7ab4e0; box-shadow: 0 0 0 2px rgba(100,160,220,0.2); }
+.party-card:has(.card-checkbox:checked) { border-color: #7ab4e0; box-shadow: 0 0 0 2px rgba(100,160,220,0.3); }
+.party-role { font-size: 0.78rem; color: #7ab4e0; font-style: italic; }
+.card-aliases { font-size: 0.78rem; color: var(--muted); }
+.party-storylines { margin: 0.25rem 0 0; padding-left: 1rem; font-size: 0.85rem; color: var(--text); line-height: 1.5; }
+.party-storylines li { margin: 0.1rem 0; }
+.party-storylines .more { color: var(--muted); list-style: none; margin-left: -1rem; }
+
+/* ── Party profile extras ────────────────────────────────────────────── */
+.personal-storylines { margin: 1rem 0 1.5rem; }
+.personal-storylines h3 { color: #7ab4e0; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; font-size: 1rem; }
+.storyline-list { padding-left: 1.25rem; margin: 0.5rem 0; }
+.storyline-list li { margin: 0.35rem 0; color: var(--text); }
+
 /* ── Thread cards ────────────────────────────────────────────────────── */
 .thread-card { flex-direction: row; }
 .thread-card-body { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.75rem; flex: 1; }

@@ -33,6 +33,37 @@
     </div>
   </div>
 
+  {% elif e.kind == 'party' %}
+  {# ── Party member card ────────────────────────────────────────────────── #}
+  <div class="entity-card party-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}">
+    <label class="card-select-wrap">
+      <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name }}" onchange="updateSelection()">
+    </label>
+    <a class="card-body" href="/entity?path={{ e.path }}">
+      <div class="card-header">
+        <span class="kind kind-party">PC</span>
+        {% if e.role %}<span class="party-role">{{ e.role }}</span>{% endif %}
+        <span class="card-sessions">{{ e.sessions | length }} session{{ 's' if e.sessions | length != 1 }}</span>
+      </div>
+      <div class="card-name">{{ e.name }}</div>
+      {% if e.aliases %}
+      <div class="card-aliases">aka {{ e.aliases | join(', ') }}</div>
+      {% endif %}
+      {% if e.personal_storylines %}
+      <ul class="party-storylines">
+        {% for s in e.personal_storylines[:3] %}
+        <li>{{ s }}</li>
+        {% endfor %}
+        {% if e.personal_storylines | length > 3 %}
+        <li class="more">+{{ e.personal_storylines | length - 3 }} more</li>
+        {% endif %}
+      </ul>
+      {% elif e.description %}
+      <p class="card-desc">{{ e.description[:120] }}{% if e.description | length > 120 %}…{% endif %}</p>
+      {% endif %}
+    </a>
+  </div>
+
   {% else %}
   {# ── Entity card (npc / location / item) ──────────────────────────────── #}
   <div class="entity-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}">

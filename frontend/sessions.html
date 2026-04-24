@@ -16,6 +16,25 @@
     <span class="muted">{{ total }} session{{ 's' if total != 1 }}</span>
   </div>
 
+  <!-- Bulk processor panel -->
+  <div class="bulk-panel" id="bulk-panel">
+    <div class="bulk-header">
+      <div class="bulk-title">Batch Processing</div>
+      <div class="bulk-controls">
+        <label class="bulk-check-label">
+          <input type="checkbox" id="skip-existing" checked>
+          Skip already-processed
+        </label>
+        <button type="button" class="bulk-btn" id="bulk-btn" onclick="startBulk()">
+          ✦ Process All Sessions
+        </button>
+      </div>
+    </div>
+    <div id="bulk-log-wrap" hidden>
+      <pre class="bulk-log" id="bulk-log"></pre>
+    </div>
+  </div>
+
   {% if not by_year %}
   <p class="muted">No sessions ingested yet. Run <code>scripts/ingest.py</code> to add your first session.</p>
   {% endif %}
@@ -70,6 +89,44 @@
   {% endfor %}
 
   <script>
+    async function startBulk() {
+      const btn     = document.getElementById('bulk-btn');
+      const logWrap = document.getElementById('bulk-log-wrap');
+      const log     = document.getElementById('bulk-log');
+      const skip    = document.getElementById('skip-existing').checked;
+
+      btn.disabled = true;
+      btn.textContent = '…processing';
+      logWrap.hidden = false;
+      log.textContent = '';
+
+      const resp = await fetch('/api/bulk/process', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({skip_existing: skip}),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        log.textContent = 'Error: ' + (err.detail || resp.statusText);
+        btn.disabled = false;
+        btn.textContent = '✦ Process All Sessions';
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        log.textContent += decoder.decode(value, {stream: true});
+        log.scrollTop = log.scrollHeight;
+      }
+
+      btn.disabled = false;
+      btn.textContent = '↺ Run Again';
+    }
+
     async function toggleArc(year, btn) {
       const area    = document.getElementById('arc-' + year);
       const content = document.getElementById('arc-content-' + year);

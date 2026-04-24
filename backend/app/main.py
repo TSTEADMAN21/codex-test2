@@ -785,6 +785,121 @@ async def split_upload(
     return JSONResponse({"sessions_created": len(created), "sessions_skipped": len(skipped), "sessions": created})
 
 
+@app.post("/api/bulk/process")
+async def bulk_process(payload: dict):
+    """Stream progress while summarizing + extracting all (or unprocessed) sessions."""
+    skip_existing = bool(payload.get("skip_existing", True))
+    if not await ollama_client.is_reachable():
+        raise HTTPException(503, "Ollama not reachable")
+
+    prompts_dir = ROOT / "backend" / "app" / "prompts"
+
+    async def _stream():
+        sessions = _all_sessions()
+        sessions_sorted = sorted(sessions, key=lambda s: s["real_date"])
+        total = len(sessions_sorted)
+        yield f"Found {total} sessions\n"
+
+        done = skipped = failed = 0
+
+        for idx, s in enumerate(sessions_sorted, 1):
+            session_dir = CODEX_ROOT / "sessions" / s["slug"]
+            yield f"\n[{idx}/{total}] {s['real_date']} — {s['slug']}\n"
+
+            # ── Summarize ───────────────────────────────────────────────────
+            if s["has_summary"] and skip_existing:
+                yield "  ✓ summary exists, skipping\n"
+            else:
+                yield "  ✦ generating summary…\n"
+                data = _load_session(session_dir)
+                if not data["notes_body"]:
+                    yield "  ⚠ no notes found, skipping\n"
+                    failed += 1
+                    continue
+
+                prompt = (
+                    "Write a 2-3 paragraph narrative session recap in past tense, as if briefing a player who missed the session. "
+                    "Cover: what the party investigated or accomplished, key NPCs they met, any combat or significant skill checks, "
+                    "and which plot threads advanced or opened. Use the character names exactly as written. "
+                    "Do not invent any details not present in the notes. Do not include stat blocks or canonical lore.\n\n"
+                    f"REAL DATE: {data['real_date']}\n"
+                    f"IN-GAME DATE: {data['in_game_date']}\n\n"
+                    f"SESSION NOTES:\n{data['notes_body']}"
+                )
+                try:
+                    chunks: list[str] = []
+                    async for chunk in ollama_client.stream(prompt, system=SYSTEM_PROMPT):
+                        chunks.append(chunk)
+                    summary_text = "".join(chunks)
+                    fm_header = f"---\ngenerated: {data['real_date']}\nsession: {data['slug']}\n---\n\n"
+                    (session_dir / "summary.md").write_text(fm_header + summary_text, encoding="utf-8")
+                    yield f"  ✓ summary saved ({len(summary_text)} chars)\n"
+                except Exception as exc:
+                    yield f"  ✗ summary failed: {exc}\n"
+                    failed += 1
+                    continue
+
+            # ── Extract entities ────────────────────────────────────────────
+            if (session_dir / "candidates.json").exists() and skip_existing:
+                yield "  ✓ candidates exist, skipping\n"
+                done += 1
+                continue
+
+            yield "  ✦ extracting entities…\n"
+            data = _load_session(session_dir)
+            try:
+                scenes = _scene_splitter.split_into_scenes(data["notes_body"])
+                yield f"  → {len(scenes)} scenes\n"
+
+                report = _extractors.ExtractionReport()
+                npc_bucket: dict = {}
+                loc_bucket: dict = {}
+                item_bucket: dict = {}
+                threads: list = []
+
+                for scene in scenes:
+                    extracted, err = await _extractors.extract_scene(scene, prompts_dir)
+                    if extracted is None:
+                        report.parse_failures.append({"scene_index": scene.index, "title": scene.title, "error": err or ""})
+                        continue
+                    verified = _extractors._verify_extraction(extracted, scene.text, report, scene.index)
+                    for npc in verified.npcs:
+                        k = npc.name.strip()
+                        if k not in npc_bucket:
+                            npc_bucket[k] = {"name": k, "description": npc.description, "evidence": []}
+                        npc_bucket[k]["evidence"].append({"scene": scene.index, "quote": npc.evidence_quote})
+                    for loc in verified.locations:
+                        k = loc.name.strip()
+                        if k not in loc_bucket:
+                            loc_bucket[k] = {"name": k, "description": loc.description, "evidence": []}
+                        loc_bucket[k]["evidence"].append({"scene": scene.index, "quote": loc.evidence_quote})
+                    for itm in verified.items:
+                        k = itm.name.strip()
+                        if k not in item_bucket:
+                            item_bucket[k] = {"name": k, "description": itm.description, "evidence": []}
+                        item_bucket[k]["evidence"].append({"scene": scene.index, "quote": itm.evidence_quote})
+                    for t in verified.plot_threads_opened:
+                        threads.append({"scene": scene.index, "description": t.thread})
+
+                candidates = {
+                    "npcs": list(npc_bucket.values()),
+                    "locations": list(loc_bucket.values()),
+                    "items": list(item_bucket.values()),
+                    "threads": threads,
+                }
+                (session_dir / "candidates.json").write_text(_json.dumps(candidates, indent=2), encoding="utf-8")
+                total_found = sum(len(v) for v in candidates.values())
+                yield f"  ✓ {total_found} entities found and saved\n"
+                done += 1
+            except Exception as exc:
+                yield f"  ✗ extraction failed: {exc}\n"
+                failed += 1
+
+        yield f"\n═══ Bulk process complete: {done} done, {skipped} skipped, {failed} failed ═══\n"
+
+    return StreamingResponse(_stream(), media_type="text/plain")
+
+
 @app.post("/api/reindex")
 async def api_reindex():
     n = indexer.reindex(CODEX_ROOT, DB_PATH)

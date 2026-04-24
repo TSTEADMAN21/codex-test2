@@ -110,7 +110,17 @@
   <!-- Raw notes accordion -->
   <details class="notes-accordion">
     <summary>Raw session notes</summary>
-    {% if notes_path %}<button type="button" class="edit-inline-btn notes-edit-btn" onclick="editSection('notes')">✎ Edit</button>{% endif %}
+    <div class="notes-toolbar">
+      {% if notes_path %}<button type="button" class="edit-inline-btn" onclick="editSection('notes')">✎ Edit</button>{% endif %}
+      <button type="button" class="edit-inline-btn" id="narrate-notes-btn" onclick="generateNarration('notes')">
+        {{ '↺ Re-narrate Notes' if has_notes_narration else '🔊 Narrate Notes' }}
+      </button>
+    </div>
+    <div id="notes-narration-area" {% if not has_notes_narration %}hidden{% endif %}>
+      {% if has_notes_narration %}
+      <audio class="narration-player" controls src="/api/session/narration?path={{ path }}&source=notes"></audio>
+      {% endif %}
+    </div>
     <div id="notes-view">
       <div class="notes-body">{{ notes_body }}</div>
     </div>
@@ -149,9 +159,11 @@
     }
     loadVoices();
 
-    async function generateNarration() {
-      const btn = document.getElementById('narrate-btn');
-      const area = document.getElementById('narration-area');
+    async function generateNarration(source) {
+      source = source || 'summary';
+      const isSummary = source === 'summary';
+      const btn  = document.getElementById(isSummary ? 'narrate-btn' : 'narrate-notes-btn');
+      const area = document.getElementById(isSummary ? 'narration-area' : 'notes-narration-area');
       const voice = (document.getElementById('voice-select') || {}).value || '';
       btn.disabled = true;
       btn.textContent = '…generating';
@@ -159,20 +171,24 @@
       const resp = await fetch('/api/session/narrate', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({path: '{{ path }}', voice}),
+        body: JSON.stringify({path: '{{ path }}', voice, source}),
       });
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({detail: resp.statusText}));
         area.innerHTML = '<p class="muted">Error: ' + (err.detail || resp.statusText) + '</p>';
+        area.hidden = false;
         btn.disabled = false;
-        btn.textContent = '🔊 Generate Narration';
+        btn.textContent = isSummary ? '🔊 Generate Narration' : '🔊 Narrate Notes';
         return;
       }
 
-      area.innerHTML = '<audio id="narration-player" class="narration-player" controls src="/api/session/narration?path={{ path }}&t=' + Date.now() + '"></audio>';
+      const t = Date.now();
+      const src = `/api/session/narration?path={{ path }}&source=${source}&t=${t}`;
+      area.innerHTML = `<audio class="narration-player" controls src="${src}"></audio>`;
+      area.hidden = false;
       btn.disabled = false;
-      btn.textContent = '↺ Re-narrate';
+      btn.textContent = isSummary ? '↺ Re-narrate' : '↺ Re-narrate Notes';
     }
 
     async function generateSummary() {

@@ -327,6 +327,8 @@ details[open] > .year-label .year-arrow { transform: rotate(90deg); }
 .notes-accordion > summary { padding: 0.6rem 1rem; cursor: pointer; background: var(--panel); color: var(--muted); font-size: 0.9rem; list-style: none; font-family: 'Cinzel', serif; }
 .notes-accordion > summary::-webkit-details-marker { display: none; }
 .notes-accordion > summary::before { content: '▶ '; font-size: 0.6rem; }
+.notes-toolbar { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem 0; flex-wrap: wrap; }
+#notes-narration-area { padding: 0.5rem 1rem 0; }
 details[open].notes-accordion > summary::before { content: '▼ '; }
 .notes-body { padding: 1rem; font-size: 0.9rem; color: var(--text); white-space: pre-wrap; line-height: 1.6; max-height: 60vh; overflow-y: auto; }
 

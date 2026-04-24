@@ -90,7 +90,8 @@ def _load_session(session_dir: Path) -> dict:
     slug = session_dir.name
     year = real_date[:4] if real_date else slug[:4]
 
-    has_narration = (session_dir / "narration.mp3").exists()
+    has_narration       = (session_dir / "narration.mp3").exists()
+    has_notes_narration = (session_dir / "narration-notes.mp3").exists()
 
     return {
         "slug": slug,
@@ -106,6 +107,7 @@ def _load_session(session_dir: Path) -> dict:
         "notes_body": notes_body,
         "notes_path": str(notes_path.relative_to(CODEX_ROOT)) if notes_path else "",
         "has_narration": has_narration,
+        "has_notes_narration": has_notes_narration,
         "has_candidates": (session_dir / "candidates.json").exists(),
     }
 
@@ -351,28 +353,37 @@ async def list_voices():
 
 @app.post("/api/session/narrate")
 async def narrate_session(payload: dict):
-    path = (payload.get("path") or "").strip()
-    voice = (payload.get("voice") or NARRATION_VOICE).strip()
+    path   = (payload.get("path") or "").strip()
+    voice  = (payload.get("voice") or NARRATION_VOICE).strip()
+    source = (payload.get("source") or "summary").strip()
     full = (CODEX_ROOT / path).resolve()
     if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
         raise HTTPException(404, "session not found")
 
     data = _load_session(full)
-    if not data["summary"]:
-        raise HTTPException(400, "no summary found — generate a summary first")
+    if source == "notes":
+        text = data["notes_body"]
+        if not text:
+            raise HTTPException(400, "no session notes found")
+        out_file = full / "narration-notes.mp3"
+    else:
+        text = data["summary"]
+        if not text:
+            raise HTTPException(400, "no summary found — generate a summary first")
+        out_file = full / "narration.mp3"
 
-    narration_path = full / "narration.mp3"
-    communicate = edge_tts.Communicate(data["summary"], voice)
-    await communicate.save(str(narration_path))
-    return {"path": path, "ready": True, "voice": voice}
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(str(out_file))
+    return {"path": path, "ready": True, "voice": voice, "source": source}
 
 
 @app.get("/api/session/narration")
-async def get_narration(path: str):
+async def get_narration(path: str, source: str = "summary"):
     full = (CODEX_ROOT / path).resolve()
     if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
         raise HTTPException(404, "session not found")
-    narration_path = full / "narration.mp3"
+    fname = "narration-notes.mp3" if source == "notes" else "narration.mp3"
+    narration_path = full / fname
     if not narration_path.exists():
         raise HTTPException(404, "no narration yet")
     return FileResponse(str(narration_path), media_type="audio/mpeg")

@@ -15,6 +15,7 @@ KIND_BY_DIR = {
     "items": "item",
     "factions": "faction",
     "party": "party",
+    "plot-threads": "thread",
 }
 
 

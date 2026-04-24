@@ -1,0 +1,57 @@
+<div class="entity-profile">
+  <div class="entity-header">
+    <span class="kind kind-{{ kind }}">{{ kind }}</span>
+    <h2 class="entity-name">
+      <a href="/entity?path={{ path }}">{{ name }}</a>
+    </h2>
+    {% if status and status != 'active' %}
+      <span class="status-badge status-{{ status }}">{{ status }}</span>
+    {% endif %}
+  </div>
+
+  {% if description %}
+  <p class="entity-description">{{ description }}</p>
+  {% endif %}
+
+  <div class="entity-meta">
+    {% if first_seen %}
+    <div class="meta-row"><span class="meta-label">First seen</span><span class="meta-value">{{ first_seen }}</span></div>
+    {% endif %}
+    {% if aliases %}
+    <div class="meta-row"><span class="meta-label">Aliases</span><span class="meta-value">{{ aliases | join(", ") }}</span></div>
+    {% endif %}
+    {% if tags %}
+    <div class="meta-row">
+      <span class="meta-label">Tags</span>
+      <span class="meta-value">{% for t in tags %}<span class="tag">{{ t }}</span>{% endfor %}</span>
+    </div>
+    {% endif %}
+    <div class="meta-row"><span class="meta-label">Sessions</span><span class="meta-value">{{ sessions | length }}</span></div>
+  </div>
+
+  {% if appearances %}
+  <section class="appearances">
+    <h3>Appearances</h3>
+    {% for app in appearances %}
+    <div class="appearance-block">
+      <div class="appearance-date">
+        {{ app.date }}
+        {% if app.session_slug %}
+          <span class="appearance-slug">{{ app.session_slug }}</span>
+        {% endif %}
+      </div>
+      {% if app.scenes %}
+      <div class="scene-list">
+        {% for s in app.scenes %}
+        <div class="scene-entry">
+          <span class="scene-num">Scene {{ s.num }}</span>
+          <q class="scene-quote">{{ s.quote }}</q>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+</div>

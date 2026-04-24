@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Browse — Adventure Codex</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+</head>
+<body>
+  <nav class="breadcrumb">
+    <a href="/">← Codex</a>
+  </nav>
+
+  <h1 class="page-title">Browse Codex</h1>
+
+  <div class="browse-tabs" role="tablist">
+    <button type="button" role="tab" data-kind="npc"
+            class="tab-btn {% if kind == 'npc' %}active{% endif %}"
+            hx-get="/browse/grid?kind=npc" hx-target="#grid-area" hx-swap="innerHTML"
+            onclick="setActiveTab(this)">Characters</button>
+    <button type="button" role="tab" data-kind="location"
+            class="tab-btn {% if kind == 'location' %}active{% endif %}"
+            hx-get="/browse/grid?kind=location" hx-target="#grid-area" hx-swap="innerHTML"
+            onclick="setActiveTab(this)">Locations</button>
+    <button type="button" role="tab" data-kind="item"
+            class="tab-btn {% if kind == 'item' %}active{% endif %}"
+            hx-get="/browse/grid?kind=item" hx-target="#grid-area" hx-swap="innerHTML"
+            onclick="setActiveTab(this)">Items</button>
+    <button type="button" role="tab" data-kind="thread"
+            class="tab-btn {% if kind == 'thread' %}active{% endif %}"
+            hx-get="/browse/grid?kind=thread" hx-target="#grid-area" hx-swap="innerHTML"
+            onclick="setActiveTab(this)">Plot Threads</button>
+  </div>
+
+  <!-- Tag filter bar — hidden until tags exist -->
+  <div class="tag-filter-bar" id="tag-filter-bar" hidden>
+    <span class="tag-filter-label">Filter</span>
+    <div class="tag-filter-pills" id="tag-filter-pills"></div>
+    <button type="button" class="tag-pill tag-pill-clear" id="tag-filter-clear" onclick="clearTagFilter()" hidden>
+      Clear filter
+    </button>
+  </div>
+
+  <div id="grid-area">
+    {% include "_browse_grid.html" %}
+  </div>
+
+  <!-- Selection bar — shown when cards are checked -->
+  <div class="selection-bar" id="selection-bar" hidden>
+    <span class="selection-count" id="selection-count"></span>
+    <span class="selection-names" id="selection-names"></span>
+    <div class="selection-actions">
+      <button type="button" onclick="openCompare()">Compare</button>
+      <button type="button" class="btn-ghost" onclick="clearSelection()">Clear</button>
+    </div>
+  </div>
+
+  <!-- Compare dialog -->
+  <dialog class="compare-dialog" id="compare-dialog">
+    <div class="compare-toolbar">
+      <span class="compare-title">Comparing entities</span>
+      <button type="button" class="btn-ghost" onclick="document.getElementById('compare-dialog').close()">✕ Close</button>
+    </div>
+    <div class="compare-columns" id="compare-columns"></div>
+  </dialog>
+
+  <script>
+    let currentKind = '{{ kind }}';
+
+    // ── Selection ─────────────────────────────────────────────────────────────
+    let selected = new Map(); // path → name
+
+    function updateSelection() {
+      selected.clear();
+      document.querySelectorAll('.card-checkbox:checked').forEach(cb => {
+        selected.set(cb.value, cb.dataset.name);
+      });
+      const bar = document.getElementById('selection-bar');
+      const countEl = document.getElementById('selection-count');
+      const namesEl = document.getElementById('selection-names');
+      if (selected.size === 0) {
+        bar.hidden = true;
+      } else {
+        bar.hidden = false;
+        countEl.textContent = `${selected.size} selected`;
+        const names = [...selected.values()];
+        namesEl.textContent = names.length <= 3
+          ? names.join(' · ')
+          : names.slice(0, 3).join(' · ') + ` +${names.length - 3} more`;
+      }
+    }
+
+    function clearSelection() {
+      document.querySelectorAll('.card-checkbox:checked').forEach(cb => { cb.checked = false; });
+      updateSelection();
+    }
+
+    function setActiveTab(btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentKind = btn.dataset.kind;
+      selected.clear();
+      document.getElementById('selection-bar').hidden = true;
+      activeTags.clear();
+    }
+
+    // ── Thread status ─────────────────────────────────────────────────────────
+    async function setThreadStatus(path, status) {
+      const resp = await fetch('/api/entity/status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path, status}),
+      });
+      if (!resp.ok) { alert('Failed to update status'); return; }
+      const html = await fetch(`/browse/grid?kind=${currentKind}`).then(r => r.text());
+      document.getElementById('grid-area').innerHTML = html;
+      buildTagFilter();
+    }
+
+    // ── Tag filter ────────────────────────────────────────────────────────────
+    let activeTags = new Set();
+
+    function buildTagFilter() {
+      const bar = document.getElementById('tag-filter-bar');
+      const pills = document.getElementById('tag-filter-pills');
+      pills.innerHTML = '';
+      activeTags.clear();
+
+      const allTags = new Set();
+      document.querySelectorAll('.entity-card[data-tags]').forEach(card => {
+        card.dataset.tags.split(',').forEach(t => { if (t.trim()) allTags.add(t.trim()); });
+      });
+
+      if (allTags.size === 0) {
+        bar.hidden = true;
+        return;
+      }
+
+      bar.hidden = false;
+      document.getElementById('tag-filter-clear').hidden = true;
+
+      [...allTags].sort().forEach(tag => {
+        const btn = document.createElement('button');
+        btn.className = 'tag-pill';
+        btn.textContent = tag;
+        btn.dataset.tag = tag;
+        btn.onclick = () => toggleTag(tag, btn);
+        pills.appendChild(btn);
+      });
+    }
+
+    function toggleTag(tag, btn) {
+      if (activeTags.has(tag)) {
+        activeTags.delete(tag);
+        btn.classList.remove('active');
+      } else {
+        activeTags.add(tag);
+        btn.classList.add('active');
+      }
+      document.getElementById('tag-filter-clear').hidden = activeTags.size === 0;
+      applyTagFilter();
+    }
+
+    function clearTagFilter() {
+      activeTags.clear();
+      document.querySelectorAll('.tag-pill').forEach(p => p.classList.remove('active'));
+      document.getElementById('tag-filter-clear').hidden = true;
+      applyTagFilter();
+    }
+
+    function applyTagFilter() {
+      document.querySelectorAll('.entity-card').forEach(card => {
+        if (activeTags.size === 0) {
+          card.hidden = false;
+          return;
+        }
+        const cardTags = new Set(card.dataset.tags.split(',').map(t => t.trim()).filter(Boolean));
+        // OR logic: show card if it has any active tag
+        card.hidden = ![...activeTags].some(t => cardTags.has(t));
+      });
+    }
+
+    // ── Compare ───────────────────────────────────────────────────────────────
+    async function openCompare() {
+      if (selected.size === 0) return;
+      const cols = document.getElementById('compare-columns');
+      cols.innerHTML = '<p class="muted" style="padding:1rem">Loading…</p>';
+      document.getElementById('compare-dialog').showModal();
+
+      const fetches = [...selected.keys()].map(path =>
+        fetch(`/entity/partial?path=${encodeURIComponent(path)}`).then(r => r.text())
+      );
+      const fragments = await Promise.all(fetches);
+      cols.innerHTML = '';
+      fragments.forEach(html => {
+        const col = document.createElement('div');
+        col.className = 'compare-col';
+        col.innerHTML = html;
+        cols.appendChild(col);
+      });
+    }
+
+    document.getElementById('compare-dialog').addEventListener('click', function(e) {
+      if (e.target === this) this.close();
+    });
+
+    // Rebuild tag filter after initial load and after every HTMX grid swap
+    buildTagFilter();
+    document.body.addEventListener('htmx:afterSwap', e => {
+      if (e.detail.target.id === 'grid-area') buildTagFilter();
+    });
+  </script>
+</body>
+</html>

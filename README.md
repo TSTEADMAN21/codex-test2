@@ -91,7 +91,30 @@ Output: `codex/sessions/<date>_<slug>/`
 - `candidates.md` — NPC / location / item candidates + disguise flags, for review
 - `merged.md` — stub, to be filled in later by the multi-notetaker merge pass
 
-**Nothing** is written to `codex/npcs/`, `codex/locations/`, etc. automatically. You promote candidates by editing `candidates.md`, creating the entity markdown, and rerunning reindex. This is deliberate — it preserves the anti-spoiler / anti-lore constraint.
+**Nothing** is written to `codex/npcs/`, `codex/locations/`, etc. automatically. This is deliberate — it preserves the anti-spoiler / anti-lore constraint.
+
+### Promoting candidates
+
+1. Open `candidates_llm.md` and change `[ ]` to `[x]` for each entity you want to keep.
+2. Run the promote script:
+
+```bash
+python scripts/promote.py codex/sessions/<date>_<slug>/candidates_llm.md
+```
+
+This creates `codex/npcs/<slug>.md`, `codex/locations/<slug>.md`, or `codex/items/<slug>.md` for each checked entity. If the file already exists (entity appears in a later session too), it appends a new appearance block instead of overwriting.
+
+Use `--dry-run` to preview what would be created without writing anything.
+
+3. Reindex so the new entity files are searchable:
+
+```bash
+# Via HTTP (server running):
+curl -X POST http://localhost:8000/api/reindex
+
+# Or directly:
+python -c "import sys; sys.path.insert(0,'backend'); from pathlib import Path; from app import indexer; indexer.reindex(Path('codex'), Path('data/codex.db'))"
+```
 
 ---
 

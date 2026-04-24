@@ -1,0 +1,65 @@
+{% if not entities %}
+<p class="muted">No {{ kind }}s in the codex yet. Promote some candidates first.</p>
+{% else %}
+<div class="entity-grid" id="entity-grid">
+  {% for e in entities %}
+
+  {% if e.kind == 'thread' %}
+  {# ── Thread card ─────────────────────────────────────────────────────── #}
+  <div class="entity-card thread-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}">
+    <label class="card-select-wrap">
+      <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name[:40] }}" onchange="updateSelection()">
+    </label>
+    <div class="card-body thread-card-body">
+      <div class="card-header">
+        <span class="thread-status thread-status-{{ e.status }}">{{ e.status }}</span>
+        <span class="card-sessions">{{ e.sessions | length }} session{{ 's' if e.sessions | length != 1 }}</span>
+      </div>
+      <a class="thread-desc" href="/entity?path={{ e.path }}">{{ e.name }}</a>
+      {% if e.first_seen %}
+      <div class="card-meta">Opened {{ e.first_seen }}</div>
+      {% endif %}
+      <div class="thread-actions">
+        {% if e.status == 'open' %}
+          <button type="button" class="thread-btn" onclick="setThreadStatus('{{ e.path }}', 'resolved')">✓ Resolve</button>
+          <button type="button" class="thread-btn thread-btn-ghost" onclick="setThreadStatus('{{ e.path }}', 'dormant')">Dormant</button>
+        {% elif e.status == 'resolved' %}
+          <button type="button" class="thread-btn thread-btn-ghost" onclick="setThreadStatus('{{ e.path }}', 'open')">Reopen</button>
+        {% elif e.status == 'dormant' %}
+          <button type="button" class="thread-btn" onclick="setThreadStatus('{{ e.path }}', 'open')">Reopen</button>
+          <button type="button" class="thread-btn thread-btn-ghost" onclick="setThreadStatus('{{ e.path }}', 'resolved')">✓ Resolve</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  {# ── Entity card (npc / location / item) ──────────────────────────────── #}
+  <div class="entity-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}">
+    <label class="card-select-wrap">
+      <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name }}" onchange="updateSelection()">
+    </label>
+    <a class="card-body" href="/entity?path={{ e.path }}">
+      <div class="card-header">
+        <span class="kind kind-{{ e.kind }}">{{ e.kind }}</span>
+        {% if e.status and e.status != 'active' %}
+          <span class="status-badge status-{{ e.status }}">{{ e.status }}</span>
+        {% endif %}
+        <span class="card-sessions">{{ e.sessions | length }} session{{ 's' if e.sessions | length != 1 }}</span>
+      </div>
+      <div class="card-name">{{ e.name }}</div>
+      {% if e.description %}
+      <p class="card-desc">{{ e.description }}</p>
+      {% endif %}
+      {% if e.first_seen %}
+      <div class="card-meta">First seen {{ e.first_seen }}</div>
+      {% endif %}
+    </a>
+  </div>
+  {% endif %}
+
+  {% endfor %}
+</div>
+
+
+{% endif %}

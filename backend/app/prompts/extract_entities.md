@@ -66,6 +66,42 @@ You are extracting entities from ONE scene of a Dungeons & Dragons session log. 
 
 7. **Descriptions are one sentence, grounded in the scene.** No speculation. No "probably" or "likely". If something is unknown, omit it.
 
+## What counts as an NPC (worked examples)
+
+The hardest judgment call is rule 5 (prefer underreporting). Use these examples to calibrate:
+
+**INCLUDE as NPC — named individual:**
+> Scene text: "The innkeeper, a stout woman named Gertrude, slid us two ales and winked."
+```json
+{"name": "Gertrude", "description": "Innkeeper who served the party ales.", "evidence_quote": "a stout woman named Gertrude, slid us two ales", "first_seen_this_scene": true}
+```
+
+**DO NOT include — species/race as name:**
+> Scene text: "A gnome at the front desk barely looked up when we came in."
+→ No NPC. "gnome" is a description, not a name. The character has no name in the scene.
+
+**DO NOT include — generic role with no name:**
+> Scene text: "Two city watch guards blocked the alley entrance."
+→ No NPC. "city watch guard" is a role. Guards with no name, no dialogue, and no individual significance are background flavor.
+
+**INCLUDE as NPC — unnamed but individually significant:**
+> Scene text: "The dark elf stepped out of the shadows and handed Selise a folded note, then vanished."
+→ Include ONLY if this character takes a meaningful individual action. Use description field to note they are unnamed: `"name": "unnamed dark elf"`, `"description": "Unidentified dark elf who delivered a note to Selise."` Use the action as the evidence quote.
+
+**DO NOT include — animals unless plot-relevant:**
+> Scene text: "A bear was rooting through the trash heap outside the warehouse."
+→ No NPC. Background animal. Not a named creature, not a companion, not involved in the scene's conflict.
+
+**INCLUDE as item — only if individually significant:**
+> Scene text: "The halfling pressed a key engraved with a serpent into Rowin's hand and said 'Kolat Towers, third floor.'"
+→ Include: `"name": "serpent key"`, evidence quote is the key passage. A key with specific instructions is plot-relevant.
+
+**DO NOT include as item — generic mundane objects:**
+> Scene text: "Ivy tossed a coin to the beggar."
+→ No item. A coin is not an individually significant item unless it's unusual, named, or magically significant.
+
+**Summary rule:** If you could swap the entity out for any other generic example of the same type with no change to the story, it should NOT be extracted.
+
 ## Output
 
 Return ONLY the JSON object. No markdown fences, no commentary, no trailing text.

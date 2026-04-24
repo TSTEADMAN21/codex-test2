@@ -7,7 +7,11 @@
     {% for r in results %}
       <li>
         <span class="kind kind-{{ r.kind }}">{{ r.kind }}</span>
-        <a class="title" href="#" onclick="showDoc('{{ r.path }}'); return false;">{{ r.title }}</a>
+        {% if r.kind in ('npc', 'location', 'item', 'faction', 'party') %}
+          <a class="title" href="/entity?path={{ r.path }}">{{ r.title }}</a>
+        {% else %}
+          <a class="title" href="#">{{ r.title }}</a>
+        {% endif %}
         <p class="snippet">{{ r.snippet | safe }}</p>
         <small class="path">{{ r.path }}</small>
       </li>

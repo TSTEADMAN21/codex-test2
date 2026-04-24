@@ -3,12 +3,37 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import re as _re
+
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "is", "it", "in", "on", "at", "to", "for", "of", "and", "or",
+    "but", "not", "with", "this", "that", "was", "are", "be", "by", "as", "we", "do",
+    "did", "have", "has", "had", "what", "who", "how", "when", "where", "why", "i",
+    "me", "my", "our", "you", "your", "he", "she", "they", "his", "her", "their",
+    "can", "will", "would", "could", "should", "about", "from", "up", "than", "so",
+    "know", "tell", "find", "get", "any", "if", "then", "there", "here", "which",
+    "been", "into", "more", "also", "just", "does", "over", "after", "before",
+})
+
+
+def _question_to_fts(question: str) -> str:
+    """Convert a natural-language question into an FTS5 OR query of content words."""
+    words = _re.findall(r"[a-zA-Z']+", question)
+    terms = [w for w in words if len(w) > 2 and w.lower() not in _STOP_WORDS]
+    if not terms:
+        # Fallback: anything longer than 2 chars
+        terms = [w for w in words if len(w) > 2]
+    if not terms:
+        return question
+    # Quote each term to avoid FTS5 syntax errors, join with OR
+    return " OR ".join(f'"{t}"' for t in terms)
+
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import db, indexer, ollama_client
+from . import db, entity_reader, indexer, ollama_client
 
 ROOT = Path(__file__).resolve().parents[2]
 CODEX_ROOT = Path(os.environ.get("CODEX_ROOT", ROOT / "codex"))
@@ -30,7 +55,7 @@ def _db():
 async def index(request: Request):
     conn = _db()
     counts = {kind: len(db.list_documents(conn, kind))
-              for kind in ("session", "npc", "location", "event", "item", "faction", "party")}
+              for kind in ("session", "npc", "location", "item", "thread")}
     conn.close()
     reachable = await ollama_client.is_reachable()
     return templates.TemplateResponse(request, "index.html", {
@@ -72,12 +97,97 @@ async def api_documents(kind: str | None = None):
         conn.close()
 
 
+_KIND_DIRS = {"npc": "npcs", "location": "locations", "item": "items", "thread": "plot-threads"}
+
+
+def _load_entities_of_kind(kind: str) -> list[dict]:
+    dir_name = _KIND_DIRS.get(kind, kind + "s")
+    kind_dir = CODEX_ROOT / dir_name
+    if not kind_dir.exists():
+        return []
+    entities = []
+    for md in sorted(kind_dir.glob("*.md")):
+        try:
+            data = entity_reader.load(md)
+            data["path"] = f"{dir_name}/{md.name}"
+            entities.append(data)
+        except Exception:
+            continue
+    return sorted(entities, key=lambda e: e.get("name", "").lower())
+
+
+@app.get("/browse", response_class=HTMLResponse)
+async def browse(request: Request, kind: str = "npc"):
+    entities = _load_entities_of_kind(kind)
+    return templates.TemplateResponse(request, "browse.html", {
+        "entities": entities,
+        "kind": kind,
+    })
+
+
+@app.get("/browse/grid", response_class=HTMLResponse)
+async def browse_grid(request: Request, kind: str = "npc"):
+    entities = _load_entities_of_kind(kind)
+    return templates.TemplateResponse(request, "_browse_grid.html", {
+        "entities": entities,
+        "kind": kind,
+    })
+
+
+@app.get("/entity/partial", response_class=HTMLResponse)
+async def entity_partial(request: Request, path: str):
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
+        raise HTTPException(404, "entity not found")
+    try:
+        data = entity_reader.load(full)
+    except Exception as exc:
+        raise HTTPException(500, f"could not parse entity: {exc}")
+    return templates.TemplateResponse(request, "_entity_partial.html", {
+        "path": path,
+        **data,
+    })
+
+
+@app.get("/entity", response_class=HTMLResponse)
+async def entity_page(request: Request, path: str):
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
+        raise HTTPException(404, "entity not found")
+    try:
+        data = entity_reader.load(full)
+    except Exception as exc:
+        raise HTTPException(500, f"could not parse entity: {exc}")
+    return templates.TemplateResponse(request, "_entity.html", {
+        "path": path,
+        **data,
+    })
+
+
 @app.get("/api/document")
 async def api_document(path: str):
     full = (CODEX_ROOT / path).resolve()
     if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
         raise HTTPException(404, "not found")
     return {"path": path, "body": full.read_text(encoding="utf-8")}
+
+
+_VALID_STATUSES = {"open", "resolved", "dormant", "active"}
+
+
+@app.post("/api/entity/status")
+async def update_entity_status(payload: dict):
+    path = (payload.get("path") or "").strip()
+    status = (payload.get("status") or "").strip()
+    if status not in _VALID_STATUSES:
+        raise HTTPException(400, f"status must be one of {sorted(_VALID_STATUSES)}")
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
+        raise HTTPException(404, "entity not found")
+    text = full.read_text(encoding="utf-8")
+    text = _re.sub(r"^status: .*$", f"status: {status}", text, flags=_re.MULTILINE)
+    full.write_text(text, encoding="utf-8")
+    return {"path": path, "status": status}
 
 
 @app.post("/api/reindex")
@@ -96,7 +206,7 @@ async def api_ask(payload: dict):
 
     conn = _db()
     try:
-        hits = db.search(conn, question, limit=8)
+        hits = db.search(conn, _question_to_fts(question), limit=8)
     finally:
         conn.close()
 

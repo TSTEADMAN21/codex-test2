@@ -66,7 +66,8 @@
 
   {% else %}
   {# ── Entity card (npc / location / item) ──────────────────────────────── #}
-  {% set all_tags = e.tags + ([e.allegiance] if e.allegiance else []) + e.locations_seen + ([e.disposition] if e.disposition else []) %}
+  {% set year_tag = [e.first_seen[:4]] if e.first_seen and e.first_seen[:4].isdigit() else [] %}
+  {% set all_tags = e.tags + ([e.allegiance] if e.allegiance else []) + e.locations_seen + ([e.disposition] if e.disposition else []) + year_tag %}
   <div class="entity-card" data-path="{{ e.path }}"
        data-tags="{{ all_tags | join(',') }}"
        data-allegiance="{{ e.allegiance }}">

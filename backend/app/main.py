@@ -252,6 +252,22 @@ async def api_document(path: str):
     return {"path": path, "body": full.read_text(encoding="utf-8")}
 
 
+@app.put("/api/document")
+async def api_document_save(payload: dict):
+    path = (payload.get("path") or "").strip()
+    content = payload.get("content", "")
+    if not path:
+        raise HTTPException(400, "path required")
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())):
+        raise HTTPException(403, "path outside codex")
+    if not full.exists():
+        raise HTTPException(404, "not found")
+    full.write_text(content, encoding="utf-8")
+    indexer.reindex(CODEX_ROOT, DB_PATH)
+    return {"path": path, "saved": True}
+
+
 @app.get("/sessions", response_class=HTMLResponse)
 async def sessions_index(request: Request):
     sessions = _all_sessions()

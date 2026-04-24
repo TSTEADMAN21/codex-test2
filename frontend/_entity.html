@@ -13,10 +13,79 @@
     <a href="/browse?kind={{ kind }}">{{ 'Party' if kind == 'party' else 'Plot Threads' if kind == 'thread' else kind + 's' }}</a>
   </nav>
 
-  {% include "_entity_partial.html" %}
+  <div class="edit-bar">
+    <button type="button" class="edit-bar-btn" id="edit-btn" onclick="startEdit()">✎ Edit</button>
+  </div>
+
+  <div id="entity-view">
+    {% include "_entity_partial.html" %}
+  </div>
+
+  <div id="entity-edit" hidden>
+    <textarea class="edit-textarea" id="edit-textarea" spellcheck="true"></textarea>
+    <div class="edit-actions">
+      <button type="button" class="btn-primary" onclick="saveEdit()">✓ Save</button>
+      <button type="button" class="btn-ghost" onclick="cancelEdit()">Cancel</button>
+      <span class="edit-status" id="edit-status"></span>
+    </div>
+  </div>
 
   <footer>
     <small class="path">{{ path }}</small>
   </footer>
+
+  <script>
+    const _PATH = '{{ path }}';
+    let _original = '';
+
+    async function startEdit() {
+      const btn = document.getElementById('edit-btn');
+      btn.textContent = '…loading';
+      btn.disabled = true;
+      try {
+        const resp = await fetch('/api/document?path=' + encodeURIComponent(_PATH));
+        if (!resp.ok) throw new Error(resp.statusText);
+        const data = await resp.json();
+        _original = data.body;
+        document.getElementById('edit-textarea').value = _original;
+        document.getElementById('entity-view').hidden = true;
+        document.getElementById('entity-edit').hidden = false;
+        btn.textContent = '✎ Edit';
+        btn.disabled = false;
+      } catch(e) {
+        btn.textContent = '✎ Edit';
+        btn.disabled = false;
+        alert('Could not load file: ' + e);
+      }
+    }
+
+    function cancelEdit() {
+      document.getElementById('entity-view').hidden = false;
+      document.getElementById('entity-edit').hidden = true;
+      document.getElementById('edit-status').textContent = '';
+    }
+
+    async function saveEdit() {
+      const content = document.getElementById('edit-textarea').value;
+      const status  = document.getElementById('edit-status');
+      status.textContent = '…saving';
+      try {
+        const resp = await fetch('/api/document', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path: _PATH, content}),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({detail: resp.statusText}));
+          status.textContent = '✗ ' + (err.detail || resp.statusText);
+          return;
+        }
+        status.textContent = '✓ Saved';
+        setTimeout(() => location.reload(), 600);
+      } catch(e) {
+        status.textContent = '✗ ' + e;
+      }
+    }
+  </script>
 </body>
 </html>

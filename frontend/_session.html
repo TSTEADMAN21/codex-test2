@@ -30,11 +30,16 @@
   <section class="session-summary-section">
     <div class="summary-heading">
       <h2>Session Summary</h2>
-      {% if ollama_ok %}
-      <button type="button" class="summary-btn" id="gen-btn" onclick="generateSummary()">
-        {{ '↺ Regenerate' if has_summary else '✦ Generate Summary' }}
-      </button>
-      {% endif %}
+      <div class="heading-actions">
+        {% if has_summary %}
+        <button type="button" class="edit-inline-btn" onclick="editSection('summary')">✎ Edit</button>
+        {% endif %}
+        {% if ollama_ok %}
+        <button type="button" class="summary-btn" id="gen-btn" onclick="generateSummary()">
+          {{ '↺ Regenerate' if has_summary else '✦ Generate Summary' }}
+        </button>
+        {% endif %}
+      </div>
     </div>
 
     <div id="summary-area">
@@ -45,6 +50,14 @@
         No summary yet.{% if ollama_ok %} Click "Generate Summary" to create one with the local LLM.{% endif %}
       </p>
       {% endif %}
+    </div>
+    <div id="summary-edit-area" hidden>
+      <textarea class="edit-textarea" id="summary-textarea" spellcheck="true"></textarea>
+      <div class="edit-actions">
+        <button type="button" class="btn-primary" onclick="saveSection('summary')">✓ Save</button>
+        <button type="button" class="btn-ghost" onclick="cancelSection('summary')">Cancel</button>
+        <span class="edit-status" id="summary-edit-status"></span>
+      </div>
     </div>
   </section>
 
@@ -97,7 +110,18 @@
   <!-- Raw notes accordion -->
   <details class="notes-accordion">
     <summary>Raw session notes</summary>
-    <div class="notes-body">{{ notes_body }}</div>
+    {% if notes_path %}<button type="button" class="edit-inline-btn notes-edit-btn" onclick="editSection('notes')">✎ Edit</button>{% endif %}
+    <div id="notes-view">
+      <div class="notes-body">{{ notes_body }}</div>
+    </div>
+    <div id="notes-edit-area" hidden>
+      <textarea class="edit-textarea" id="notes-textarea" spellcheck="true"></textarea>
+      <div class="edit-actions">
+        <button type="button" class="btn-primary" onclick="saveSection('notes')">✓ Save</button>
+        <button type="button" class="btn-ghost" onclick="cancelSection('notes')">Cancel</button>
+        <span class="edit-status" id="notes-edit-status"></span>
+      </div>
+    </div>
   </details>
 
   <footer>
@@ -308,6 +332,63 @@
       }
       html += '</div>';
       document.getElementById('extract-area').innerHTML = html;
+    }
+
+    // ── Inline editing ──────────────────────────────────────────────────────
+    const _SESSION_PATH = '{{ path }}';
+    const _NOTES_PATH   = '{{ notes_path }}';
+
+    const _sectionCfg = {
+      summary: {
+        filePath: () => _SESSION_PATH + '/summary.md',
+        viewId:   'summary-area',
+        editId:   'summary-edit-area',
+        taId:     'summary-textarea',
+        statusId: 'summary-edit-status',
+      },
+      notes: {
+        filePath: () => _NOTES_PATH,
+        viewId:   'notes-view',
+        editId:   'notes-edit-area',
+        taId:     'notes-textarea',
+        statusId: 'notes-edit-status',
+      },
+    };
+
+    async function editSection(key) {
+      const cfg = _sectionCfg[key];
+      const resp = await fetch('/api/document?path=' + encodeURIComponent(cfg.filePath()));
+      if (!resp.ok) { alert('Could not load file'); return; }
+      const data = await resp.json();
+      document.getElementById(cfg.taId).value = data.body;
+      document.getElementById(cfg.viewId).hidden = true;
+      document.getElementById(cfg.editId).hidden = false;
+    }
+
+    function cancelSection(key) {
+      const cfg = _sectionCfg[key];
+      document.getElementById(cfg.viewId).hidden = false;
+      document.getElementById(cfg.editId).hidden = true;
+      document.getElementById(cfg.statusId).textContent = '';
+    }
+
+    async function saveSection(key) {
+      const cfg    = _sectionCfg[key];
+      const status = document.getElementById(cfg.statusId);
+      const content = document.getElementById(cfg.taId).value;
+      status.textContent = '…saving';
+      const resp = await fetch('/api/document', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: cfg.filePath(), content}),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        status.textContent = '✗ ' + (err.detail || resp.statusText);
+        return;
+      }
+      status.textContent = '✓ Saved';
+      setTimeout(() => location.reload(), 600);
     }
   </script>
 </body>

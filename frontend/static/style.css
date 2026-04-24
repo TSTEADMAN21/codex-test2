@@ -274,7 +274,39 @@ details[open] > .year-label .year-arrow { transform: rotate(90deg); }
 .session-summary-section { margin: 1.5rem 0; }
 .summary-heading { display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-bottom: 1rem; }
 .summary-heading h2 { margin: 0; font-size: 1.2rem; border: none; padding: 0; }
+.heading-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 .summary-btn { padding: 0.3rem 0.85rem; font-size: 0.8rem; }
+
+/* ── Inline editing ───────────────────────────────────────────────────── */
+.edit-bar { display: flex; justify-content: flex-end; margin-bottom: 0.75rem; }
+.edit-bar-btn, .edit-inline-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  font-size: 0.78rem; padding: 0.2rem 0.65rem; border-radius: 3px; cursor: pointer;
+  font-family: 'Cinzel', serif; letter-spacing: 0.03em;
+}
+.edit-bar-btn:hover, .edit-inline-btn:hover { border-color: var(--accent); color: var(--accent); }
+.notes-edit-btn { margin: 0.5rem 0 0.25rem; display: block; }
+.edit-textarea {
+  width: 100%; min-height: 320px; background: #080610;
+  border: 1px solid var(--border); color: var(--text);
+  font-family: 'Courier New', Courier, monospace; font-size: 0.85rem;
+  padding: 0.85rem; border-radius: 3px; resize: vertical; line-height: 1.6;
+}
+.edit-textarea:focus { outline: none; border-color: var(--accent); }
+.edit-actions { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem; }
+.edit-status { font-size: 0.82rem; color: var(--muted); font-style: italic; }
+.btn-primary {
+  padding: 0.3rem 1rem; font-size: 0.82rem; background: rgba(244,216,72,0.1);
+  border: 1px solid var(--accent); color: var(--accent); border-radius: 3px; cursor: pointer;
+  font-family: 'Cinzel', serif;
+}
+.btn-primary:hover { background: rgba(244,216,72,0.18); }
+.btn-ghost {
+  padding: 0.3rem 0.75rem; font-size: 0.82rem; background: none;
+  border: 1px solid var(--border); color: var(--muted); border-radius: 3px; cursor: pointer;
+  font-family: 'Cinzel', serif;
+}
+.btn-ghost:hover { border-color: var(--text); color: var(--text); }
 .summary-text { line-height: 1.85; color: var(--text); white-space: pre-wrap; font-size: 1.05rem; }
 .summary-stream { white-space: pre-wrap; background: var(--panel); padding: 1rem; border-radius: 3px; border: 1px solid var(--border); font-family: 'EB Garamond', Georgia, serif; font-size: 0.95rem; color: var(--text); }
 

@@ -387,10 +387,28 @@
       if (e.target === this) this.close();
     });
 
+    // ── Card expand/collapse ──────────────────────────────────────────────────
+    function initCardExpand() {
+      document.querySelectorAll('.entity-card-inner').forEach(inner => {
+        if (inner.scrollHeight > inner.clientHeight + 4) {
+          inner.classList.add('overflows');
+          const btn = inner.closest('.entity-card').querySelector('.card-expand-btn');
+          if (btn) btn.classList.add('visible');
+        }
+      });
+    }
+
+    function toggleCardExpand(btn) {
+      const inner = btn.closest('.entity-card').querySelector('.entity-card-inner');
+      const expanded = inner.classList.toggle('expanded');
+      btn.textContent = expanded ? '▲ show less' : '▼ show more';
+    }
+
     // Rebuild tag filter after initial load and after every HTMX grid swap
     buildTagFilter();
+    initCardExpand();
     document.body.addEventListener('htmx:afterSwap', e => {
-      if (e.detail.target.id === 'grid-area') buildTagFilter();
+      if (e.detail.target.id === 'grid-area') { buildTagFilter(); initCardExpand(); }
     });
   </script>
 </body>

@@ -16,6 +16,19 @@ _STOP_WORDS = frozenset({
 })
 
 
+def _strip_markdown(text: str) -> str:
+    """Remove markdown syntax so TTS reads clean prose."""
+    text = _re.sub(r'^#{1,6}\s+', '', text, flags=_re.MULTILINE)   # headings
+    text = _re.sub(r'\*{1,3}([^*]+)\*{1,3}', r'\1', text)          # bold/italic
+    text = _re.sub(r'_{1,3}([^_]+)_{1,3}', r'\1', text)            # underscore emphasis
+    text = _re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)          # links → text
+    text = _re.sub(r'`[^`]+`', '', text)                            # inline code
+    text = _re.sub(r'^[-*+]\s+', '', text, flags=_re.MULTILINE)     # list bullets
+    text = _re.sub(r'^\d+\.\s+', '', text, flags=_re.MULTILINE)     # numbered lists
+    text = _re.sub(r'\n{3,}', '\n\n', text)                         # collapse blank lines
+    return text.strip()
+
+
 def _question_to_fts(question: str) -> str:
     """Convert a natural-language question into an FTS5 OR query of content words."""
     words = _re.findall(r"[a-zA-Z']+", question)
@@ -335,6 +348,33 @@ async def summarize_session(payload: dict):
 
 NARRATION_VOICE = os.environ.get("NARRATION_VOICE", "en-US-GuyNeural")
 
+@app.get("/api/entities/names")
+async def entity_names():
+    """Return all entity names + aliases + paths for client-side auto-linking."""
+    results = []
+    link_kinds = ("npc", "location", "item", "party")
+    for kind in link_kinds:
+        dir_name = _KIND_DIRS[kind]
+        kind_dir = CODEX_ROOT / dir_name
+        if not kind_dir.exists():
+            continue
+        for md in kind_dir.glob("*.md"):
+            try:
+                data = entity_reader.load(md)
+                name = data.get("name", "").strip()
+                if not name:
+                    continue
+                results.append({
+                    "name": name,
+                    "aliases": [a for a in data.get("aliases", []) if a and len(a) >= 3],
+                    "path": f"{dir_name}/{md.name}",
+                    "kind": kind,
+                })
+            except Exception:
+                continue
+    return results
+
+
 _VOICE_CACHE: list[dict] | None = None
 
 @app.get("/api/voices")
@@ -372,7 +412,7 @@ async def narrate_session(payload: dict):
             raise HTTPException(400, "no summary found — generate a summary first")
         out_file = full / "narration.mp3"
 
-    communicate = edge_tts.Communicate(text, voice)
+    communicate = edge_tts.Communicate(_strip_markdown(text), voice)
     await communicate.save(str(out_file))
     return {"path": path, "ready": True, "voice": voice, "source": source}
 

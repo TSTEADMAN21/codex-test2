@@ -321,7 +321,34 @@ details[open] > .year-label .year-arrow { transform: rotate(90deg); }
 }
 .voice-select:focus { outline: none; border-color: var(--accent); }
 .narration-btn { padding: 0.3rem 0.85rem; font-size: 0.8rem; }
+.narration-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .narration-player { width: 100%; margin-top: 0.25rem; accent-color: var(--accent); }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+
+.music-mixer { margin-top: 0.75rem; padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.15); border-radius: 4px; border: 1px solid var(--border); }
+.music-mixer-label { font-family: 'Cinzel', serif; font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 0.4rem; }
+.music-mixer-presets { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.music-preset-btn { font-size: 0.72rem; padding: 0.15rem 0.55rem; background: var(--panel); border: 1px solid var(--border); color: var(--muted); border-radius: 3px; cursor: pointer; font-family: 'EB Garamond', serif; }
+.music-preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+.music-preset-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(244,216,72,0.08); }
+.music-mixer-controls { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.music-file-btn { font-size: 0.75rem; padding: 0.2rem 0.6rem; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 3px; cursor: pointer; font-family: 'EB Garamond', serif; }
+.music-file-btn:hover { border-color: var(--accent); color: var(--accent); }
+.music-filename { font-size: 0.75rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-vol-label { font-size: 0.72rem; white-space: nowrap; }
+.music-vol-slider { width: 80px; accent-color: var(--accent); cursor: pointer; }
+.music-play-btn { padding: 0.15rem 0.6rem; font-size: 0.8rem; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 3px; cursor: pointer; }
+.music-play-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.music-play-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Entity auto-links in summary text */
+.entity-link { text-decoration: underline dotted; text-underline-offset: 2px; font-style: italic; }
+.entity-link:hover { text-decoration: underline; }
+.entity-link-npc     { color: #c8a84b; }
+.entity-link-party   { color: #7dbf7d; }
+.entity-link-location{ color: #7ab8d4; }
+.entity-link-item    { color: #c17fbd; }
 
 .notes-accordion { margin-top: 2rem; border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
 .notes-accordion > summary { padding: 0.6rem 1rem; cursor: pointer; background: var(--panel); color: var(--muted); font-size: 0.9rem; list-style: none; font-family: 'Cinzel', serif; }
@@ -405,12 +432,34 @@ details[open].notes-accordion > summary::before { content: '▼ '; }
 
 .entity-card {
   background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
-  display: flex; flex-direction: column; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s;
+  display: flex; flex-direction: column; transition: border-color 0.15s, box-shadow 0.15s;
   position: relative; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
-.entity-card-inner { display: flex; flex: 1; }
 .entity-card:hover { border-color: var(--accent); box-shadow: 0 0 12px rgba(244,216,72,0.18); }
 .entity-card:has(.card-checkbox:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(244,216,72,0.15); }
+
+.entity-card-inner {
+  display: flex; flex: 1;
+  max-height: 200px; overflow: hidden;
+  transition: max-height 0.25s ease;
+  position: relative;
+}
+.entity-card-inner.expanded { max-height: 1000px; }
+.entity-card-inner.overflows::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 48px;
+  background: linear-gradient(transparent, var(--panel));
+  pointer-events: none;
+}
+.entity-card-inner.expanded::after { display: none; }
+
+.card-expand-btn {
+  display: none; width: 100%; background: none; border: none;
+  border-top: 1px solid rgba(106,84,24,0.2); color: var(--muted);
+  font-size: 0.68rem; padding: 0.2rem 0; cursor: pointer; text-align: center;
+  font-family: 'Cinzel', serif; letter-spacing: 0.04em;
+}
+.card-expand-btn.visible { display: block; }
+.card-expand-btn:hover { color: var(--accent); }
 
 .card-select-wrap { display: flex; align-items: flex-start; padding: 0.75rem 0 0.75rem 0.75rem; cursor: pointer; }
 .card-checkbox { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin-top: 2px; }

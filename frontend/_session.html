@@ -62,7 +62,6 @@
   </section>
 
   <!-- Narration section -->
-  {% if has_summary %}
   <section class="session-narration-section">
     <div class="narration-heading">
       <h2>Narration</h2>
@@ -70,8 +69,9 @@
         <select id="voice-select" class="voice-select" title="Narration voice">
           <option value="">Loading voices…</option>
         </select>
-        <button type="button" class="narration-btn" id="narrate-btn" onclick="generateNarration()">
-          {{ '↺ Re-narrate' if has_narration else '🔊 Generate Narration' }}
+        <button type="button" class="narration-btn" id="narrate-btn" onclick="generateNarration()"
+                {% if not has_summary %}disabled title="Generate a summary first"{% endif %}>
+          {{ '↺ Re-narrate' if has_narration else '🔊 Narrate Summary' }}
         </button>
       </div>
     </div>
@@ -79,12 +79,34 @@
       {% if has_narration %}
       <audio id="narration-player" class="narration-player" controls
              src="/api/session/narration?path={{ path }}"></audio>
+      {% elif has_summary %}
+      <p class="muted narration-placeholder">Choose a voice and click "Narrate Summary".</p>
       {% else %}
-      <p class="muted" id="narration-placeholder">Choose a voice and click "Generate Narration".</p>
+      <p class="muted narration-placeholder">Generate a session summary first, then narrate it.</p>
       {% endif %}
     </div>
+    <!-- Background music mixer -->
+    <div class="music-mixer" id="music-mixer">
+      <label class="music-mixer-label">🎵 Background Music</label>
+      <div class="music-mixer-presets">
+        <button type="button" class="music-preset-btn" onclick="loadMusicPreset('tavern')">⚔ Tavern</button>
+        <button type="button" class="music-preset-btn" onclick="loadMusicPreset('battle')">🔥 Battle</button>
+        <button type="button" class="music-preset-btn" onclick="loadMusicPreset('mystery')">🌑 Mystery</button>
+      </div>
+      <div class="music-mixer-controls">
+        <button type="button" class="music-file-btn" onclick="document.getElementById('music-file-input').click()">
+          Custom…
+        </button>
+        <input type="file" id="music-file-input" class="visually-hidden" accept="audio/*" title="Choose background music file" onchange="loadMusicFile(this)">
+        <span class="music-filename muted" id="music-filename">No track loaded</span>
+        <label class="music-vol-label muted" for="music-volume">Vol</label>
+        <input type="range" id="music-volume" class="music-vol-slider" min="0" max="100" value="25"
+               title="Background music volume" oninput="setMusicVolume(this.value)">
+        <button type="button" class="music-play-btn" id="music-play-btn" onclick="toggleMusic()" disabled>▶</button>
+      </div>
+    </div>
+    <audio id="bg-music-player" class="visually-hidden" loop></audio>
   </section>
-  {% endif %}
 
   <!-- Entity Extraction section -->
   {% if ollama_ok or has_candidates %}
@@ -185,8 +207,9 @@
 
       const t = Date.now();
       const src = `/api/session/narration?path={{ path }}&source=${source}&t=${t}`;
-      area.innerHTML = `<audio class="narration-player" controls src="${src}"></audio>`;
+      area.innerHTML = `<audio class="narration-player" controls src="${src}" id="${isSummary ? 'narration-player' : 'notes-narration-player'}"></audio>`;
       area.hidden = false;
+      if (isSummary) _attachNarrationSync(document.getElementById('narration-player'));
       btn.disabled = false;
       btn.textContent = isSummary ? '↺ Re-narrate' : '↺ Re-narrate Notes';
     }
@@ -228,6 +251,17 @@
       area.innerHTML = '<div class="summary-text">' + full.replace(/\n/g, '<br>') + '</div>';
       btn.disabled = false;
       btn.textContent = '↺ Regenerate';
+      _entityIndex = null; // bust cache in case entities were promoted this session
+      autoLinkSummary();
+      // Enable narrate button now that a summary exists
+      const narrBtn = document.getElementById('narrate-btn');
+      if (narrBtn) {
+        narrBtn.disabled = false;
+        narrBtn.title = '';
+        if (narrBtn.textContent.includes('Generate')) narrBtn.textContent = '🔊 Narrate Summary';
+        const ph = document.querySelector('#narration-area .narration-placeholder');
+        if (ph) ph.textContent = 'Choose a voice and click "Narrate Summary".';
+      }
     }
     async function runExtraction() {
       const btn  = document.getElementById('extract-btn');
@@ -349,6 +383,152 @@
       html += '</div>';
       document.getElementById('extract-area').innerHTML = html;
     }
+
+    // ── Background music ────────────────────────────────────────────────────
+    const _bgMusic = document.getElementById('bg-music-player');
+
+    const _PRESETS = {
+      tavern:  { src: '/static/music/tavern.mp3',  label: 'Teller of the Tales (K. MacLeod)' },
+      battle:  { src: '/static/music/battle.mp3',  label: 'Clash Defiant (K. MacLeod)' },
+      mystery: { src: '/static/music/mystery.mp3', label: 'Decline (K. MacLeod)' },
+    };
+
+    function loadMusicPreset(key) {
+      const preset = _PRESETS[key];
+      _bgMusic.src = preset.src;
+      document.getElementById('music-filename').textContent = preset.label;
+      document.getElementById('music-play-btn').disabled = false;
+      _bgMusic.volume = document.getElementById('music-volume').value / 100;
+      document.querySelectorAll('.music-preset-btn').forEach(b => b.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+    }
+
+    function loadMusicFile(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      _bgMusic.src = URL.createObjectURL(file);
+      document.getElementById('music-filename').textContent = file.name;
+      document.getElementById('music-play-btn').disabled = false;
+      _bgMusic.volume = document.getElementById('music-volume').value / 100;
+      document.querySelectorAll('.music-preset-btn').forEach(b => b.classList.remove('active'));
+    }
+
+    function setMusicVolume(val) {
+      _bgMusic.volume = val / 100;
+    }
+
+    function toggleMusic() {
+      const btn = document.getElementById('music-play-btn');
+      if (_bgMusic.paused) {
+        _bgMusic.play();
+        btn.textContent = '⏸';
+      } else {
+        _bgMusic.pause();
+        btn.textContent = '▶';
+      }
+    }
+
+    // Sync bg music with narration player (play/pause together)
+    function _attachNarrationSync(audioEl) {
+      audioEl.addEventListener('play',  () => { if (_bgMusic.src && _bgMusic.src !== window.location.href) _bgMusic.play().catch(() => {}); });
+      audioEl.addEventListener('pause', () => { _bgMusic.pause(); document.getElementById('music-play-btn').textContent = '⏸'; });
+      audioEl.addEventListener('ended', () => { _bgMusic.pause(); _bgMusic.currentTime = 0; document.getElementById('music-play-btn').textContent = '▶'; });
+    }
+
+    // Attach sync to any existing narration player on load
+    const _existingNarr = document.getElementById('narration-player');
+    if (_existingNarr) _attachNarrationSync(_existingNarr);
+
+    // ── Entity auto-linking ─────────────────────────────────────────────────
+    let _entityIndex = null;
+
+    async function _fetchEntityIndex() {
+      if (_entityIndex) return _entityIndex;
+      try {
+        const resp = await fetch('/api/entities/names');
+        if (!resp.ok) return [];
+        _entityIndex = await resp.json();
+      } catch(e) { _entityIndex = []; }
+      return _entityIndex;
+    }
+
+    function _escapeRegex(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Linkify text nodes inside el, skipping nodes already inside <a> tags
+    function _linkifyNode(el, terms) {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+        acceptNode: node => node.parentElement.closest('a') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+      });
+      const nodes = [];
+      let n;
+      while ((n = walker.nextNode())) nodes.push(n);
+
+      for (const textNode of nodes) {
+        const text = textNode.textContent;
+        let lastIndex = 0;
+        const fragments = [];
+        let re = terms._combined;
+        re.lastIndex = 0;
+        let match;
+        while ((match = re.exec(text)) !== null) {
+          if (match.index > lastIndex)
+            fragments.push(document.createTextNode(text.slice(lastIndex, match.index)));
+          const term = terms.find(t => t.re.test(match[0]));
+          if (term) {
+            const a = document.createElement('a');
+            a.href = `/entity?path=${encodeURIComponent(term.path)}`;
+            a.className = 'entity-link entity-link-' + term.kind;
+            a.title = term.name;
+            a.textContent = match[0];
+            fragments.push(a);
+          } else {
+            fragments.push(document.createTextNode(match[0]));
+          }
+          lastIndex = match.index + match[0].length;
+        }
+        if (fragments.length === 0) continue;
+        if (lastIndex < text.length) fragments.push(document.createTextNode(text.slice(lastIndex)));
+        const parent = textNode.parentNode;
+        fragments.forEach(f => parent.insertBefore(f, textNode));
+        parent.removeChild(textNode);
+      }
+    }
+
+    async function autoLinkSummary() {
+      const container = document.querySelector('#summary-area .summary-text');
+      if (!container || container.dataset.linked) return;
+
+      const entities = await _fetchEntityIndex();
+      if (!entities.length) return;
+
+      // Build per-term regex (word-boundary aware, case-insensitive)
+      const terms = [];
+      for (const e of entities) {
+        const names = [e.name, ...(e.aliases || [])].filter(n => n && n.length >= 3);
+        for (const nm of names) {
+          terms.push({
+            name: e.name,
+            path: e.path,
+            kind: e.kind,
+            re: new RegExp(`^${_escapeRegex(nm)}$`, 'i'),
+            pattern: _escapeRegex(nm),
+          });
+        }
+      }
+      // Sort longest first to avoid partial shadowing
+      terms.sort((a, b) => b.pattern.length - a.pattern.length);
+      // Build combined regex once
+      const combined = new RegExp('\\b(' + terms.map(t => t.pattern).join('|') + ')\\b', 'gi');
+      terms._combined = combined;
+
+      _linkifyNode(container, terms);
+      container.dataset.linked = '1';
+    }
+
+    // Run on initial load if summary exists
+    {% if has_summary %}autoLinkSummary();{% endif %}
 
     // ── Inline editing ──────────────────────────────────────────────────────
     const _SESSION_PATH = '{{ path }}';

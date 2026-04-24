@@ -105,6 +105,7 @@
         {% endif %}
       </a>
     </div>
+    <button type="button" class="card-expand-btn" onclick="toggleCardExpand(this)">▼ show more</button>
     {% if e.kind == 'npc' %}
     <div class="card-disposition-row">
       <button type="button" class="disp-btn disp-ally {% if e.disposition == 'ally' %}active{% endif %}"

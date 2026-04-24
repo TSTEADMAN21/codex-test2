@@ -33,6 +33,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+import frontmatter as _fm
+
 from . import db, entity_reader, indexer, ollama_client
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +51,77 @@ if (FRONTEND_DIR / "static").exists():
 
 def _db():
     return db.connect(DB_PATH)
+
+
+# ── Session helpers ───────────────────────────────────────────────────────────
+
+def _load_session(session_dir: Path) -> dict:
+    """Return metadata dict for one session directory."""
+    notes_files = sorted(session_dir.glob("notes-*.md"))
+    notes_path = notes_files[0] if notes_files else None
+
+    real_date = in_game_date = notetaker = ""
+    scene_count = 0
+    notes_body = ""
+
+    if notes_path:
+        try:
+            fm = _fm.load(notes_path)
+            real_date    = str(fm.get("real_date", ""))
+            in_game_date = str(fm.get("in_game_date", ""))
+            notetaker    = str(fm.get("notetaker", ""))
+            scene_count  = int(fm.get("scene_count", 0))
+            notes_body   = fm.content
+        except Exception:
+            pass
+
+    summary_path = session_dir / "summary.md"
+    summary_text = ""
+    if summary_path.exists():
+        try:
+            sf = _fm.load(summary_path)
+            summary_text = sf.content.strip()
+        except Exception:
+            summary_text = summary_path.read_text(encoding="utf-8").strip()
+
+    slug = session_dir.name
+    year = real_date[:4] if real_date else slug[:4]
+
+    return {
+        "slug": slug,
+        "path": f"sessions/{slug}",
+        "real_date": real_date,
+        "in_game_date": in_game_date,
+        "notetaker": notetaker,
+        "scene_count": scene_count,
+        "year": year,
+        "has_summary": bool(summary_text),
+        "summary_excerpt": summary_text[:280] + ("…" if len(summary_text) > 280 else ""),
+        "summary": summary_text,
+        "notes_body": notes_body,
+        "notes_path": str(notes_path.relative_to(CODEX_ROOT)) if notes_path else "",
+    }
+
+
+def _all_sessions() -> list[dict]:
+    sessions_dir = CODEX_ROOT / "sessions"
+    if not sessions_dir.exists():
+        return []
+    sessions = []
+    for d in sorted(sessions_dir.iterdir()):
+        if d.is_dir():
+            sessions.append(_load_session(d))
+    sessions.sort(key=lambda s: s["real_date"], reverse=True)
+    return sessions
+
+
+def _sessions_by_year(sessions: list[dict]) -> list[tuple[str, list[dict]]]:
+    """Return [(year, [session, ...]), ...] sorted newest year first."""
+    from collections import defaultdict
+    grouped: dict[str, list] = defaultdict(list)
+    for s in sessions:
+        grouped[s["year"]].append(s)
+    return sorted(grouped.items(), key=lambda x: x[0], reverse=True)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -170,6 +243,69 @@ async def api_document(path: str):
     if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
         raise HTTPException(404, "not found")
     return {"path": path, "body": full.read_text(encoding="utf-8")}
+
+
+@app.get("/sessions", response_class=HTMLResponse)
+async def sessions_index(request: Request):
+    sessions = _all_sessions()
+    by_year = _sessions_by_year(sessions)
+    return templates.TemplateResponse(request, "sessions.html", {
+        "by_year": by_year,
+        "total": len(sessions),
+    })
+
+
+@app.get("/session", response_class=HTMLResponse)
+async def session_detail(request: Request, path: str):
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+    data = _load_session(full)
+    reachable = await ollama_client.is_reachable()
+    return templates.TemplateResponse(request, "_session.html", {
+        "ollama_ok": reachable,
+        **data,
+    })
+
+
+@app.post("/api/session/summarize")
+async def summarize_session(payload: dict):
+    path = (payload.get("path") or "").strip()
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+    if not await ollama_client.is_reachable():
+        raise HTTPException(503, "Ollama not reachable")
+
+    data = _load_session(full)
+    if not data["notes_body"]:
+        raise HTTPException(400, "no session notes found to summarize")
+
+    prompt = (
+        "Write a 2-3 paragraph narrative session recap in past tense, as if briefing a player who missed the session. "
+        "Cover: what the party investigated or accomplished, key NPCs they met, any combat or significant skill checks, "
+        "and which plot threads advanced or opened. Use the character names exactly as written. "
+        "Do not invent any details not present in the notes. Do not include stat blocks or canonical lore.\n\n"
+        f"REAL DATE: {data['real_date']}\n"
+        f"IN-GAME DATE: {data['in_game_date']}\n\n"
+        f"SESSION NOTES:\n{data['notes_body']}"
+    )
+
+    summary_path = full / "summary.md"
+    chunks: list[str] = []
+
+    async def stream_and_save():
+        async for chunk in ollama_client.stream(prompt, system=SYSTEM_PROMPT):
+            chunks.append(chunk)
+            yield chunk
+        summary_text = "".join(chunks)
+        fm_header = (
+            f"---\ngenerated: {data['real_date']}\n"
+            f"session: {data['slug']}\n---\n\n"
+        )
+        summary_path.write_text(fm_header + summary_text, encoding="utf-8")
+
+    return StreamingResponse(stream_and_save(), media_type="text/plain")
 
 
 _VALID_STATUSES = {"open", "resolved", "dormant", "active"}

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ real_date }} — Adventure Codex</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="breadcrumb">
+    <a href="/">← Codex</a>
+    <span class="breadcrumb-sep">·</span>
+    <a href="/sessions">Sessions</a>
+  </nav>
+
+  <div class="session-detail-header">
+    <div class="session-detail-dates">
+      <h1 class="session-detail-date">{{ real_date }}</h1>
+      {% if in_game_date %}
+      <span class="session-detail-ingame">{{ in_game_date }}</span>
+      {% endif %}
+    </div>
+    <div class="session-detail-meta">
+      <span class="muted">{{ scene_count }} scenes</span>
+      {% if notetaker %}<span class="muted">· notes by {{ notetaker }}</span>{% endif %}
+    </div>
+  </div>
+
+  <!-- Summary section -->
+  <section class="session-summary-section">
+    <div class="summary-heading">
+      <h2>Session Summary</h2>
+      {% if ollama_ok %}
+      <button type="button" class="summary-btn" id="gen-btn" onclick="generateSummary()">
+        {{ '↺ Regenerate' if has_summary else '✦ Generate Summary' }}
+      </button>
+      {% endif %}
+    </div>
+
+    <div id="summary-area">
+      {% if has_summary %}
+      <div class="summary-text" id="summary-text">{{ summary }}</div>
+      {% else %}
+      <p class="muted" id="summary-placeholder">
+        No summary yet.{% if ollama_ok %} Click "Generate Summary" to create one with the local LLM.{% endif %}
+      </p>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Raw notes accordion -->
+  <details class="notes-accordion">
+    <summary>Raw session notes</summary>
+    <div class="notes-body">{{ notes_body }}</div>
+  </details>
+
+  <footer>
+    <small class="path">{{ path }}</small>
+  </footer>
+
+  <script>
+    async function generateSummary() {
+      const btn = document.getElementById('gen-btn');
+      const area = document.getElementById('summary-area');
+      btn.disabled = true;
+      btn.textContent = '…generating';
+
+      area.innerHTML = '<pre id="summary-stream" class="summary-stream"></pre>';
+      const pre = document.getElementById('summary-stream');
+
+      const resp = await fetch('/api/session/summarize', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: '{{ path }}'}),
+      });
+
+      if (!resp.ok) {
+        area.innerHTML = '<p class="muted">Error: ' + await resp.text() + '</p>';
+        btn.disabled = false;
+        btn.textContent = '↺ Regenerate';
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, {stream: true});
+        full += chunk;
+        pre.textContent = full;
+      }
+
+      // Replace stream pre with styled div
+      area.innerHTML = '<div class="summary-text">' + full.replace(/\n/g, '<br>') + '</div>';
+      btn.disabled = false;
+      btn.textContent = '↺ Regenerate';
+    }
+  </script>
+</body>
+</html>

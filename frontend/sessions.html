@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sessions — Adventure Codex</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="breadcrumb">
+    <a href="/">← Codex</a>
+  </nav>
+
+  <div class="sessions-header">
+    <h1 class="page-title">Session Archive</h1>
+    <span class="muted">{{ total }} session{{ 's' if total != 1 }}</span>
+  </div>
+
+  {% if not by_year %}
+  <p class="muted">No sessions ingested yet. Run <code>scripts/ingest.py</code> to add your first session.</p>
+  {% endif %}
+
+  {% for year, sessions in by_year %}
+  <details class="year-group" {% if loop.first %}open{% endif %}>
+    <summary class="year-label">
+      <span class="year-title">{{ year }}</span>
+      <span class="year-count">{{ sessions | length }} session{{ 's' if sessions | length != 1 }}</span>
+    </summary>
+
+    <div class="session-list">
+      {% for s in sessions %}
+      <a class="session-row" href="/session?path={{ s.path }}">
+        <div class="session-row-left">
+          <span class="session-date">{{ s.real_date }}</span>
+          {% if s.in_game_date %}
+          <span class="session-ingame">{{ s.in_game_date }}</span>
+          {% endif %}
+        </div>
+        <div class="session-row-middle">
+          <span class="session-slug">{{ s.slug }}</span>
+          {% if s.has_summary %}
+          <p class="session-excerpt">{{ s.summary_excerpt }}</p>
+          {% else %}
+          <span class="session-no-summary muted">No summary yet</span>
+          {% endif %}
+        </div>
+        <div class="session-row-right">
+          <span class="session-scenes">{{ s.scene_count }} scenes</span>
+          {% if s.has_summary %}
+          <span class="summary-badge">✓ summary</span>
+          {% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </details>
+  {% endfor %}
+
+</body>
+</html>

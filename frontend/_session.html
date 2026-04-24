@@ -68,6 +68,27 @@
   </section>
   {% endif %}
 
+  <!-- Entity Extraction section -->
+  {% if ollama_ok or has_candidates %}
+  <section class="session-extract-section">
+    <div class="extract-heading">
+      <h2>Entity Extraction</h2>
+      {% if ollama_ok %}
+      <button type="button" class="extract-btn" id="extract-btn" onclick="runExtraction()">
+        {{ '↺ Re-extract' if has_candidates else '✦ Extract Entities' }}
+      </button>
+      {% endif %}
+    </div>
+    <div id="extract-area">
+      {% if has_candidates %}
+      <p class="muted">Previously extracted. <a href="#" class="extract-load-link" onclick="loadCandidates(); return false;">Review candidates →</a></p>
+      {% else %}
+      <p class="muted">Run extraction to find NPCs, locations, items, and plot threads in these notes.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
   <!-- Raw notes accordion -->
   <details class="notes-accordion">
     <summary>Raw session notes</summary>
@@ -141,6 +162,126 @@
       area.innerHTML = '<div class="summary-text">' + full.replace(/\n/g, '<br>') + '</div>';
       btn.disabled = false;
       btn.textContent = '↺ Regenerate';
+    }
+    async function runExtraction() {
+      const btn  = document.getElementById('extract-btn');
+      const area = document.getElementById('extract-area');
+      btn.disabled = true;
+      btn.textContent = '…extracting';
+      area.innerHTML = '<pre class="extract-stream" id="extract-stream"></pre>';
+      const pre = document.getElementById('extract-stream');
+
+      const resp = await fetch('/api/session/extract', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: '{{ path }}'}),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        area.innerHTML = '<p class="muted">Error: ' + (err.detail || resp.statusText) + '</p>';
+        btn.disabled = false; btn.textContent = '↺ Re-extract'; return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, {stream: true});
+        const marker = full.indexOf('__CANDIDATES_JSON__');
+        pre.textContent = (marker >= 0 ? full.slice(0, marker) : full).trim();
+      }
+
+      btn.disabled = false; btn.textContent = '↺ Re-extract';
+      const marker = full.indexOf('__CANDIDATES_JSON__');
+      if (marker < 0) { area.innerHTML = '<p class="muted">No candidates found.</p>'; return; }
+      try {
+        renderReview(JSON.parse(full.slice(marker + '__CANDIDATES_JSON__'.length).trim()));
+      } catch(e) { area.innerHTML = '<p class="muted">Parse error: ' + e + '</p>'; }
+    }
+
+    function loadCandidates() {
+      fetch('/api/session/candidates?path={{ path }}')
+        .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+        .then(renderReview)
+        .catch(e => { document.getElementById('extract-area').innerHTML = '<p class="muted">Error: ' + e + '</p>'; });
+    }
+
+    function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function renderReview(data) {
+      const sections = [
+        {key:'npcs', label:'NPCs'},
+        {key:'locations', label:'Locations'},
+        {key:'items', label:'Items'},
+        {key:'threads', label:'Plot Threads'},
+      ];
+      let html = '<div class="candidates-review">';
+      let hasAny = false;
+      for (const {key, label} of sections) {
+        const items = data[key] || [];
+        if (!items.length) continue;
+        hasAny = true;
+        html += '<div class="cand-section"><h3 class="cand-section-title">' + label + '</h3>';
+        for (const item of items) {
+          const name = key === 'threads' ? item.description : item.name;
+          const meta = key === 'threads' ? 'Scene ' + item.scene : (item.description || '');
+          const encoded = _esc(JSON.stringify(item));
+          html += '<label class="cand-item">';
+          html += '<input type="checkbox" class="cand-cb" data-kind="' + key + '" data-json="' + encoded + '" checked>';
+          html += '<span class="cand-name">' + _esc(name) + '</span>';
+          if (meta) html += '<span class="cand-desc">' + _esc(meta) + '</span>';
+          html += '</label>';
+        }
+        html += '</div>';
+      }
+      if (!hasAny) {
+        html += '<p class="muted">No entities found in these notes.</p>';
+      } else {
+        html += '<div class="cand-actions">';
+        html += '<button type="button" onclick="promoteSelected()">✦ Save Selected to Codex</button>';
+        html += ' <button type="button" class="btn-ghost" onclick="document.querySelectorAll(\'.cand-cb\').forEach(c=>c.checked=true)">All</button>';
+        html += ' <button type="button" class="btn-ghost" onclick="document.querySelectorAll(\'.cand-cb\').forEach(c=>c.checked=false)">None</button>';
+        html += '</div>';
+      }
+      html += '</div>';
+      document.getElementById('extract-area').innerHTML = html;
+    }
+
+    async function promoteSelected() {
+      const selected = [];
+      document.querySelectorAll('.cand-cb:checked').forEach(cb => {
+        try { selected.push({kind: cb.dataset.kind, ...JSON.parse(cb.dataset.json)}); } catch(e) {}
+      });
+      if (!selected.length) return;
+      const btn = event.currentTarget;
+      btn.disabled = true; btn.textContent = '…saving';
+      const resp = await fetch('/api/session/promote', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: '{{ path }}', selections: selected}),
+      });
+      btn.disabled = false; btn.textContent = '✦ Save Selected to Codex';
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        alert('Error: ' + (err.detail || resp.statusText)); return;
+      }
+      const result = await resp.json();
+      let html = '<div class="promote-result"><p>✓ ' + result.created + ' created, ' + result.updated + ' updated</p>';
+      if (result.entities.length) {
+        html += '<ul class="promote-list">';
+        for (const e of result.entities) {
+          html += '<li>';
+          if (e.path) html += '<a href="/entity?path=' + _esc(e.path) + '" class="promote-link">' + _esc(e.name) + '</a>';
+          else html += _esc(e.name);
+          html += ' <span class="muted">(' + _esc(e.action) + ')</span></li>';
+        }
+        html += '</ul>';
+      }
+      html += '</div>';
+      document.getElementById('extract-area').innerHTML = html;
     }
   </script>
 </body>

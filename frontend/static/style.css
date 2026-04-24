@@ -485,3 +485,29 @@ details[open].notes-accordion > summary::before { content: '▼ '; }
 .upload-link { color: var(--accent); text-decoration: none; font-family: 'Cinzel', serif; font-size: 0.9rem; }
 .upload-link:hover { text-decoration: underline; }
 .upload-error { margin-top: 1rem; color: var(--warn); }
+
+/* ── Entity extraction section ───────────────────────────────────────── */
+.session-extract-section { margin: 1.5rem 0; }
+.extract-heading { display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-bottom: 1rem; }
+.extract-heading h2 { margin: 0; font-size: 1.2rem; border: none; padding: 0; }
+.extract-btn { padding: 0.3rem 0.85rem; font-size: 0.8rem; }
+.extract-load-link { color: var(--accent); text-decoration: none; font-family: 'Cinzel', serif; font-size: 0.88rem; }
+.extract-load-link:hover { text-decoration: underline; }
+.extract-stream { white-space: pre-wrap; background: var(--panel); padding: 1rem; border-radius: 3px; border: 1px solid var(--border); font-family: monospace; font-size: 0.85rem; color: var(--text); max-height: 200px; overflow-y: auto; }
+
+.candidates-review { margin-top: 0.5rem; }
+.cand-section { margin-bottom: 1.25rem; }
+.cand-section-title { font-family: 'Cinzel', serif; font-size: 0.95rem; color: var(--accent); margin: 0 0 0.5rem; border-bottom: 1px solid rgba(106,84,24,0.3); padding-bottom: 0.2rem; }
+.cand-item { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.35rem 0.5rem; border-radius: 3px; cursor: pointer; transition: background 0.1s; }
+.cand-item:hover { background: rgba(244,216,72,0.05); }
+.cand-cb { accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+.cand-name { font-weight: 600; color: var(--accent); font-family: 'Cinzel', serif; font-size: 0.9rem; }
+.cand-desc { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+.cand-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); flex-wrap: wrap; }
+
+.promote-result { margin-top: 0.5rem; padding: 0.85rem 1rem; background: rgba(58,136,69,0.1); border: 1px solid rgba(58,136,69,0.28); border-radius: 3px; }
+.promote-result p { margin: 0 0 0.5rem; color: var(--ok); }
+.promote-list { margin: 0; padding-left: 1.25rem; }
+.promote-list li { margin: 0.25rem 0; font-size: 0.9rem; }
+.promote-link { color: var(--accent); text-decoration: none; }
+.promote-link:hover { text-decoration: underline; }

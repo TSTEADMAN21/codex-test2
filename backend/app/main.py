@@ -28,6 +28,7 @@ def _question_to_fts(question: str) -> str:
     # Quote each term to avoid FTS5 syntax errors, join with OR
     return " OR ".join(f'"{t}"' for t in terms)
 
+import json as _json
 import edge_tts
 
 from fastapi import FastAPI, Form, HTTPException, Query, Request, UploadFile
@@ -37,7 +38,7 @@ from fastapi.templating import Jinja2Templates
 
 import frontmatter as _fm
 
-from . import db, entity_reader, indexer, ollama_client
+from . import db, entity_reader, extractors as _extractors, indexer, ollama_client, scene_splitter as _scene_splitter
 
 ROOT = Path(__file__).resolve().parents[2]
 CODEX_ROOT = Path(os.environ.get("CODEX_ROOT", ROOT / "codex"))
@@ -105,6 +106,7 @@ def _load_session(session_dir: Path) -> dict:
         "notes_body": notes_body,
         "notes_path": str(notes_path.relative_to(CODEX_ROOT)) if notes_path else "",
         "has_narration": has_narration,
+        "has_candidates": (session_dir / "candidates.json").exists(),
     }
 
 
@@ -386,6 +388,186 @@ async def summarize_arc(payload: dict):
         )
 
     return StreamingResponse(stream_and_save(), media_type="text/plain")
+
+
+def _entity_slugify(name: str) -> str:
+    s = _re.sub(r"[^\w\s-]", "", name.lower())
+    s = _re.sub(r"[\s_]+", "-", s)
+    return _re.sub(r"-+", "-", s).strip("-")[:80].rstrip("-")
+
+def _session_date_from_slug(slug: str) -> str:
+    return slug.split("_", 1)[0]
+
+def _appearance_block(session_date: str, slug: str, evidence: list) -> str:
+    lines = [f"### {session_date} ({slug})\n"]
+    for ev in evidence:
+        lines.append(f'- Scene {ev["scene"]}: _{ev["quote"]}_')
+    return "\n".join(lines) + "\n"
+
+def _create_entity_file_web(path, name: str, kind: str, description: str, evidence: list, session_slug: str):
+    session_date = _session_date_from_slug(session_slug)
+    fm = f"---\nname: {name}\ntype: {kind}\naliases: []\nfirst_seen: {session_date}\nsessions: [{session_slug}]\ntags: []\nstatus: active\n---\n"
+    body = f"\n## Description\n\n{description or name}\n\n## Appearances\n\n{_appearance_block(session_date, session_slug, evidence)}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(fm + body, encoding="utf-8")
+
+def _append_entity_appearance_web(path, evidence: list, session_slug: str):
+    text = path.read_text(encoding="utf-8")
+    if session_slug in text:
+        return
+    session_date = _session_date_from_slug(session_slug)
+    # update sessions list in frontmatter
+    text = _re.sub(r"^sessions: \[(.*)?\]", lambda m: f"sessions: [{m.group(1) + ', ' if m.group(1) else ''}{session_slug}]", text, flags=_re.MULTILINE)
+    text = text.rstrip("\n") + "\n\n" + _appearance_block(session_date, session_slug, evidence) + "\n"
+    path.write_text(text, encoding="utf-8")
+
+def _create_thread_file_web(path, description: str, scene: int, session_slug: str):
+    session_date = _session_date_from_slug(session_slug)
+    fm = f"---\nname: {description}\ntype: thread\nstatus: open\nopened: {session_date}\nopened_scene: {scene}\nresolved: \nsessions: [{session_slug}]\ntags: []\n---\n"
+    body = f"\n## Description\n\n{description}\n\n## Appearances\n\n### {session_date} ({session_slug})\n\n- Scene {scene}: _{description}_\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(fm + body, encoding="utf-8")
+
+def _append_thread_appearance_web(path, description: str, scene: int, session_slug: str):
+    text = path.read_text(encoding="utf-8")
+    if session_slug in text:
+        return
+    session_date = _session_date_from_slug(session_slug)
+    text = _re.sub(r"^sessions: \[(.*)?\]", lambda m: f"sessions: [{m.group(1) + ', ' if m.group(1) else ''}{session_slug}]", text, flags=_re.MULTILINE)
+    text = text.rstrip("\n") + f"\n\n### {session_date} ({session_slug})\n\n- Scene {scene}: _{description}_\n"
+    path.write_text(text, encoding="utf-8")
+
+
+@app.post("/api/session/extract")
+async def extract_session_entities(payload: dict):
+    path = (payload.get("path") or "").strip()
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+    if not await ollama_client.is_reachable():
+        raise HTTPException(503, "Ollama not reachable")
+    data = _load_session(full)
+    if not data["notes_body"]:
+        raise HTTPException(400, "no session notes found")
+
+    prompts_dir = ROOT / "backend" / "app" / "prompts"
+
+    async def _stream():
+        scenes = _scene_splitter.split_into_scenes(data["notes_body"])
+        total = len(scenes)
+        yield f"Found {total} scene{'s' if total != 1 else ''} in session notes\n"
+
+        report = _extractors.ExtractionReport()
+        npc_bucket: dict = {}
+        loc_bucket: dict = {}
+        item_bucket: dict = {}
+        threads: list = []
+
+        for scene in scenes:
+            yield f"Extracting scene {scene.index + 1}/{total}: {scene.title[:50]}…\n"
+            extracted, err = await _extractors.extract_scene(scene, prompts_dir)
+            if extracted is None:
+                yield f"  ⚠ scene {scene.index + 1} failed: {(err or '')[:80]}\n"
+                report.parse_failures.append({"scene_index": scene.index, "title": scene.title, "error": err or ""})
+                continue
+            verified = _extractors._verify_extraction(extracted, scene.text, report, scene.index)
+            report.scene_extractions.append((scene, verified))
+            yield f"  → {len(verified.npcs)} NPCs, {len(verified.locations)} locations, {len(verified.items)} items, {len(verified.plot_threads_opened)} threads\n"
+
+            for npc in verified.npcs:
+                k = npc.name.strip()
+                if k not in npc_bucket:
+                    npc_bucket[k] = {"name": k, "description": npc.description, "evidence": []}
+                npc_bucket[k]["evidence"].append({"scene": scene.index, "quote": npc.evidence_quote})
+            for loc in verified.locations:
+                k = loc.name.strip()
+                if k not in loc_bucket:
+                    loc_bucket[k] = {"name": k, "description": loc.description, "evidence": []}
+                loc_bucket[k]["evidence"].append({"scene": scene.index, "quote": loc.evidence_quote})
+            for itm in verified.items:
+                k = itm.name.strip()
+                if k not in item_bucket:
+                    item_bucket[k] = {"name": k, "description": itm.description, "evidence": []}
+                item_bucket[k]["evidence"].append({"scene": scene.index, "quote": itm.evidence_quote})
+            for t in verified.plot_threads_opened:
+                threads.append({"scene": scene.index, "description": t.thread})
+
+        candidates = {
+            "npcs": list(npc_bucket.values()),
+            "locations": list(loc_bucket.values()),
+            "items": list(item_bucket.values()),
+            "threads": threads,
+        }
+        (full / "candidates.json").write_text(_json.dumps(candidates, indent=2), encoding="utf-8")
+        total_found = sum(len(v) for v in candidates.values())
+        yield f"\nExtraction complete — {total_found} entities found\n"
+        yield f"__CANDIDATES_JSON__\n{_json.dumps(candidates)}\n"
+
+    return StreamingResponse(_stream(), media_type="text/plain")
+
+
+@app.get("/api/session/candidates")
+async def get_candidates(path: str):
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+    cand_path = full / "candidates.json"
+    if not cand_path.exists():
+        raise HTTPException(404, "no candidates extracted yet")
+    return _json.loads(cand_path.read_text(encoding="utf-8"))
+
+
+_KIND_DIR_MAP = {"npc": "npcs", "npcs": "npcs", "location": "locations", "locations": "locations",
+                 "item": "items", "items": "items", "thread": "plot-threads", "threads": "plot-threads"}
+
+
+@app.post("/api/session/promote")
+async def promote_entities(payload: dict):
+    path = (payload.get("path") or "").strip()
+    selections = payload.get("selections", [])
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+    session_slug = full.name
+    created = updated = 0
+    entities = []
+
+    for sel in selections:
+        kind = sel.get("kind", "")
+        dir_name = _KIND_DIR_MAP.get(kind)
+        if not dir_name:
+            continue
+        kind_dir = CODEX_ROOT / dir_name
+
+        if kind in ("thread", "threads"):
+            desc = sel.get("description", "")
+            scene = int(sel.get("scene", 0))
+            slug = _entity_slugify(desc)[:60]
+            target = kind_dir / f"{slug}.md"
+            if not target.exists():
+                _create_thread_file_web(target, desc, scene, session_slug)
+                created += 1; action = "created"
+            else:
+                _append_thread_appearance_web(target, desc, scene, session_slug)
+                updated += 1; action = "updated"
+            entities.append({"name": desc[:60], "action": action, "path": f"{dir_name}/{slug}.md"})
+        else:
+            name = sel.get("name", "")
+            desc = sel.get("description", "")
+            evidence = sel.get("evidence", [])
+            slug = _entity_slugify(name)
+            target = kind_dir / f"{slug}.md"
+            kind_singular = kind.rstrip("s")
+            if not target.exists():
+                _create_entity_file_web(target, name, kind_singular, desc, evidence, session_slug)
+                created += 1; action = "created"
+            else:
+                _append_entity_appearance_web(target, evidence, session_slug)
+                updated += 1; action = "updated"
+            entities.append({"name": name, "action": action, "path": f"{dir_name}/{slug}.md"})
+
+    indexer.reindex(CODEX_ROOT, DB_PATH)
+    return {"created": created, "updated": updated, "entities": entities}
 
 
 _VALID_STATUSES = {"open", "resolved", "dormant", "active"}

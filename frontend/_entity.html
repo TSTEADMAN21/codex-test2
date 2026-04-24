@@ -14,6 +14,12 @@
   </nav>
 
   <div class="edit-bar">
+    {% if kind == 'npc' %}
+    <button type="button" class="edit-bar-btn" id="move-party-btn" onclick="moveToParty()">→ Move to Party</button>
+    {% endif %}
+    {% if kind == 'party' %}
+    <button type="button" class="edit-bar-btn" id="move-npc-btn" onclick="moveToNPC()">→ Move to NPCs</button>
+    {% endif %}
     <button type="button" class="edit-bar-btn" id="edit-btn" onclick="startEdit()">✎ Edit</button>
   </div>
 
@@ -37,6 +43,29 @@
   <script>
     const _PATH = '{{ path }}';
     let _original = '';
+
+    async function moveToKind(kind, btnId) {
+      const btn = document.getElementById(btnId);
+      btn.disabled = true;
+      btn.textContent = '…moving';
+      const resp = await fetch('/api/entity/move', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: _PATH, kind}),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        alert('Error: ' + (err.detail || resp.statusText));
+        btn.disabled = false;
+        btn.textContent = btnId === 'move-party-btn' ? '→ Move to Party' : '→ Move to NPCs';
+        return;
+      }
+      const data = await resp.json();
+      window.location.href = '/entity?path=' + encodeURIComponent(data.path);
+    }
+
+    function moveToParty() { moveToKind('party', 'move-party-btn'); }
+    function moveToNPC()   { moveToKind('npc',   'move-npc-btn');   }
 
     async function startEdit() {
       const btn = document.getElementById('edit-btn');

@@ -703,6 +703,38 @@ async def promote_entities(payload: dict):
     return {"created": created, "updated": updated, "entities": entities}
 
 
+_DIR_TO_TYPE = {"npcs": "npc", "locations": "location", "items": "item",
+                "plot-threads": "thread", "party": "party"}
+_TYPE_TO_DIR = {"npc": "npcs", "location": "locations", "item": "items",
+                "thread": "plot-threads", "party": "party"}
+
+
+@app.post("/api/entity/move")
+async def move_entity(payload: dict):
+    """Move an entity file to a different kind directory and update its type."""
+    path     = (payload.get("path") or "").strip()
+    new_kind = (payload.get("kind") or "").strip()
+    if new_kind not in _TYPE_TO_DIR:
+        raise HTTPException(400, f"kind must be one of {sorted(_TYPE_TO_DIR)}")
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
+        raise HTTPException(404, "entity not found")
+
+    new_dir = CODEX_ROOT / _TYPE_TO_DIR[new_kind]
+    new_dir.mkdir(parents=True, exist_ok=True)
+    new_path = new_dir / full.name
+
+    text = full.read_text(encoding="utf-8")
+    text = _re.sub(r"^type: .*$", f"type: {new_kind}", text, flags=_re.MULTILINE)
+    new_path.write_text(text, encoding="utf-8")
+    if full != new_path:
+        full.unlink()
+
+    new_rel = f"{_TYPE_TO_DIR[new_kind]}/{full.name}"
+    indexer.reindex(CODEX_ROOT, DB_PATH)
+    return {"path": new_rel, "kind": new_kind}
+
+
 _VALID_STATUSES = {"open", "resolved", "dormant", "active"}
 
 

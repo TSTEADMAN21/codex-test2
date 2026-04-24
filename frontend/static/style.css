@@ -503,6 +503,7 @@ details[open].notes-accordion > summary::before { content: '▼ '; }
   overflow: hidden; display: flex; flex-direction: column;
   box-shadow: 0 0 60px rgba(0,0,0,0.9);
 }
+.compare-dialog:not([open]) { display: none; }
 .compare-dialog::backdrop { background: rgba(0,0,0,0.75); }
 .compare-toolbar {
   display: flex; align-items: center; justify-content: space-between;

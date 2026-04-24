@@ -9,6 +9,10 @@
         <span class="kind kind-{{ r.kind }}">{{ r.kind }}</span>
         {% if r.kind in ('npc', 'location', 'item', 'faction', 'party') %}
           <a class="title" href="/entity?path={{ r.path }}">{{ r.title }}</a>
+        {% elif r.kind == 'thread' %}
+          <a class="title" href="/entity?path={{ r.path }}">{{ r.title }}</a>
+        {% elif r.kind == 'session' %}
+          <a class="title" href="/session?path={{ r.path.rsplit('/', 1)[0] }}">{{ r.title }}</a>
         {% else %}
           <a class="title" href="#">{{ r.title }}</a>
         {% endif %}

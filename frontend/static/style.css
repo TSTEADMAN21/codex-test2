@@ -99,16 +99,29 @@ footer { margin-top: 3rem; text-align: center; }
 .year-label {
   display: flex; align-items: center; gap: 1rem;
   padding: 0.75rem 1rem; cursor: pointer;
-  background: var(--panel); user-select: none; list-style: none;
+  background: var(--panel); -webkit-user-select: none; user-select: none; list-style: none;
 }
 .year-label::-webkit-details-marker { display: none; }
-.year-label::before {
-  content: '▶'; font-size: 0.65rem; color: var(--muted);
-  transition: transform 0.15s; flex-shrink: 0;
+.year-arrow {
+  font-size: 0.65rem; color: var(--muted);
+  transition: transform 0.15s; flex-shrink: 0; display: inline-block;
 }
-details[open] > .year-label::before { transform: rotate(90deg); }
+details[open] > .year-label .year-arrow { transform: rotate(90deg); }
 .year-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
-.year-count  { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
+.year-count  { color: var(--muted); font-size: 0.85rem; }
+.arc-btn {
+  margin-left: auto; padding: 0.2rem 0.7rem; font-size: 0.78rem;
+  background: none; border: 1px solid var(--border); color: var(--accent);
+  border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+.arc-btn:hover:not(:disabled) { background: rgba(199,169,107,0.1); }
+.arc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.arc-area { border-bottom: 1px solid var(--border); }
+.arc-content { padding: 1.25rem 1.5rem; }
+.arc-text p { margin: 0 0 0.85rem; line-height: 1.7; color: var(--text); }
+.arc-text p:last-child { margin-bottom: 0; }
+.arc-error { color: var(--warn); }
 
 .session-list { padding: 0; }
 .session-row {

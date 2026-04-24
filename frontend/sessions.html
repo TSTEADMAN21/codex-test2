@@ -21,11 +21,24 @@
   {% endif %}
 
   {% for year, sessions in by_year %}
+  {% set summarized = sessions | selectattr('has_summary') | list %}
   <details class="year-group" {% if loop.first %}open{% endif %}>
     <summary class="year-label">
+      <span class="year-arrow">▶</span>
       <span class="year-title">{{ year }}</span>
       <span class="year-count">{{ sessions | length }} session{{ 's' if sessions | length != 1 }}</span>
+      <button type="button" class="arc-btn"
+              onclick="event.preventDefault(); event.stopPropagation(); toggleArc('{{ year }}', this)"
+              {% if summarized | length == 0 %}disabled title="Generate individual session summaries first"{% endif %}>
+        {{ '↺ Re-roll Arc' if (year + '-arc') else '✦ Roll Up Arc' }}
+        {% if summarized | length > 0 %}({{ summarized | length }}/{{ sessions | length }}){% endif %}
+      </button>
     </summary>
+
+    <!-- Arc rollup area -->
+    <div class="arc-area" id="arc-{{ year }}" hidden>
+      <div class="arc-content" id="arc-content-{{ year }}"></div>
+    </div>
 
     <div class="session-list">
       {% for s in sessions %}
@@ -56,5 +69,56 @@
   </details>
   {% endfor %}
 
+  <script>
+    async function toggleArc(year, btn) {
+      const area    = document.getElementById('arc-' + year);
+      const content = document.getElementById('arc-content-' + year);
+
+      // If already showing content, toggle visibility
+      if (!area.hidden && content.dataset.loaded) {
+        area.hidden = true;
+        return;
+      }
+      if (!area.hidden) {
+        area.hidden = true;
+        return;
+      }
+
+      area.hidden = false;
+      btn.disabled = true;
+      btn.textContent = '…generating';
+      content.innerHTML = '<pre class="summary-stream" id="arc-stream-' + year + '"></pre>';
+      const pre = document.getElementById('arc-stream-' + year);
+
+      const resp = await fetch('/api/arc/summarize', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({year}),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        content.innerHTML = '<p class="muted arc-error">' + (err.detail || resp.statusText) + '</p>';
+        btn.disabled = false;
+        btn.textContent = '✦ Roll Up Arc';
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, {stream: true});
+        pre.textContent = full;
+      }
+
+      content.innerHTML = '<div class="arc-text">' + full.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>').replace(/^/, '<p>') + '</p></div>';
+      content.dataset.loaded = '1';
+      btn.disabled = false;
+      btn.textContent = '↺ Re-roll Arc';
+    }
+  </script>
 </body>
 </html>

@@ -308,6 +308,50 @@ async def summarize_session(payload: dict):
     return StreamingResponse(stream_and_save(), media_type="text/plain")
 
 
+@app.post("/api/arc/summarize")
+async def summarize_arc(payload: dict):
+    year = (payload.get("year") or "").strip()
+    if not year.isdigit():
+        raise HTTPException(400, "year must be a 4-digit number")
+    if not await ollama_client.is_reachable():
+        raise HTTPException(503, "Ollama not reachable")
+
+    sessions = [s for s in _all_sessions() if s["year"] == year and s["has_summary"]]
+    if not sessions:
+        raise HTTPException(400, f"No session summaries found for {year}. Generate individual session summaries first.")
+
+    sessions.sort(key=lambda s: s["real_date"])
+    sessions_block = "\n\n---\n\n".join(
+        f"SESSION {s['real_date']} (in-game: {s['in_game_date']}):\n{s['summary']}"
+        for s in sessions
+    )
+
+    prompt = (
+        f"The following are individual session summaries from a D&D campaign, all from {year}. "
+        "Write a 3-4 paragraph arc summary covering the full year: what the party was trying to accomplish, "
+        "the major events and turning points, key NPCs they dealt with, and where things stand at year's end. "
+        "Write in past tense as a campaign chronicle. Do not invent details not present in the summaries.\n\n"
+        f"SESSIONS:\n{sessions_block}"
+    )
+
+    arc_dir = CODEX_ROOT.parent / "codex" / "arcs"
+    arc_path = CODEX_ROOT / "arcs" / f"{year}.md"
+    chunks: list[str] = []
+
+    async def stream_and_save():
+        async for chunk in ollama_client.stream(prompt, system=SYSTEM_PROMPT):
+            chunks.append(chunk)
+            yield chunk
+        arc_text = "".join(chunks)
+        arc_path.parent.mkdir(parents=True, exist_ok=True)
+        arc_path.write_text(
+            f"---\nyear: {year}\nsessions: {len(sessions)}\n---\n\n{arc_text}",
+            encoding="utf-8"
+        )
+
+    return StreamingResponse(stream_and_save(), media_type="text/plain")
+
+
 _VALID_STATUSES = {"open", "resolved", "dormant", "active"}
 
 

@@ -28,8 +28,10 @@ def _question_to_fts(question: str) -> str:
     # Quote each term to avoid FTS5 syntax errors, join with OR
     return " OR ".join(f'"{t}"' for t in terms)
 
+import edge_tts
+
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -87,6 +89,8 @@ def _load_session(session_dir: Path) -> dict:
     slug = session_dir.name
     year = real_date[:4] if real_date else slug[:4]
 
+    has_narration = (session_dir / "narration.mp3").exists()
+
     return {
         "slug": slug,
         "path": f"sessions/{slug}",
@@ -100,6 +104,7 @@ def _load_session(session_dir: Path) -> dict:
         "summary": summary_text,
         "notes_body": notes_body,
         "notes_path": str(notes_path.relative_to(CODEX_ROOT)) if notes_path else "",
+        "has_narration": has_narration,
     }
 
 
@@ -306,6 +311,37 @@ async def summarize_session(payload: dict):
         summary_path.write_text(fm_header + summary_text, encoding="utf-8")
 
     return StreamingResponse(stream_and_save(), media_type="text/plain")
+
+
+NARRATION_VOICE = os.environ.get("NARRATION_VOICE", "en-US-GuyNeural")
+
+
+@app.post("/api/session/narrate")
+async def narrate_session(payload: dict):
+    path = (payload.get("path") or "").strip()
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+
+    data = _load_session(full)
+    if not data["summary"]:
+        raise HTTPException(400, "no summary found — generate a summary first")
+
+    narration_path = full / "narration.mp3"
+    communicate = edge_tts.Communicate(data["summary"], NARRATION_VOICE)
+    await communicate.save(str(narration_path))
+    return {"path": path, "ready": True}
+
+
+@app.get("/api/session/narration")
+async def get_narration(path: str):
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+    narration_path = full / "narration.mp3"
+    if not narration_path.exists():
+        raise HTTPException(404, "no narration yet")
+    return FileResponse(str(narration_path), media_type="audio/mpeg")
 
 
 @app.post("/api/arc/summarize")

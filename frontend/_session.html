@@ -48,6 +48,26 @@
     </div>
   </section>
 
+  <!-- Narration section -->
+  {% if has_summary %}
+  <section class="session-narration-section">
+    <div class="narration-heading">
+      <h2>Narration</h2>
+      <button type="button" class="narration-btn" id="narrate-btn" onclick="generateNarration()">
+        {{ '↺ Re-narrate' if has_narration else '🔊 Generate Narration' }}
+      </button>
+    </div>
+    <div id="narration-area">
+      {% if has_narration %}
+      <audio id="narration-player" class="narration-player" controls
+             src="/api/session/narration?path={{ path }}"></audio>
+      {% else %}
+      <p class="muted" id="narration-placeholder">Click "Generate Narration" to create an audio reading of the summary.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
   <!-- Raw notes accordion -->
   <details class="notes-accordion">
     <summary>Raw session notes</summary>
@@ -59,6 +79,31 @@
   </footer>
 
   <script>
+    async function generateNarration() {
+      const btn = document.getElementById('narrate-btn');
+      const area = document.getElementById('narration-area');
+      btn.disabled = true;
+      btn.textContent = '…generating';
+
+      const resp = await fetch('/api/session/narrate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: '{{ path }}'}),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        area.innerHTML = '<p class="muted">Error: ' + (err.detail || resp.statusText) + '</p>';
+        btn.disabled = false;
+        btn.textContent = '🔊 Generate Narration';
+        return;
+      }
+
+      area.innerHTML = '<audio id="narration-player" class="narration-player" controls src="/api/session/narration?path={{ path }}&t=' + Date.now() + '"></audio>';
+      btn.disabled = false;
+      btn.textContent = '↺ Re-narrate';
+    }
+
     async function generateSummary() {
       const btn = document.getElementById('gen-btn');
       const area = document.getElementById('summary-area');

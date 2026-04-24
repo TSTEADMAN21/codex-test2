@@ -159,6 +159,12 @@ details[open] > .year-label .year-arrow { transform: rotate(90deg); }
 .summary-text { line-height: 1.7; color: var(--text); white-space: pre-wrap; }
 .summary-stream { white-space: pre-wrap; background: var(--panel); padding: 1rem; border-radius: 6px; border: 1px solid var(--border); font-family: inherit; font-size: 0.9rem; color: var(--text); }
 
+.session-narration-section { margin: 1.5rem 0; }
+.narration-heading { display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-bottom: 1rem; }
+.narration-heading h2 { margin: 0; color: var(--accent); font-size: 1.2rem; border: none; padding: 0; }
+.narration-btn { padding: 0.3rem 0.85rem; font-size: 0.82rem; }
+.narration-player { width: 100%; margin-top: 0.25rem; }
+
 .notes-accordion { margin-top: 2rem; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .notes-accordion > summary { padding: 0.6rem 1rem; cursor: pointer; background: var(--panel); color: var(--muted); font-size: 0.9rem; list-style: none; }
 .notes-accordion > summary::-webkit-details-marker { display: none; }

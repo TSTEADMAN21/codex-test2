@@ -348,9 +348,9 @@
 
     function applyTagFilter() {
       document.querySelectorAll('.entity-card').forEach(card => {
-        if (activeTags.size === 0) { card.hidden = false; return; }
+        if (activeTags.size === 0) { card.style.display = ''; return; }
         const cardTags = new Set(card.dataset.tags.split(',').map(t => t.trim()).filter(Boolean));
-        card.hidden = ![...activeTags].some(t => cardTags.has(t));
+        card.style.display = [...activeTags].some(t => cardTags.has(t)) ? '' : 'none';
       });
     }
 

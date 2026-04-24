@@ -433,6 +433,20 @@ async def summarize_arc(payload: dict):
     return StreamingResponse(stream_and_save(), media_type="text/plain")
 
 
+def _update_scene_count(session_dir: Path, count: int):
+    """Write scene_count back into the notes frontmatter."""
+    notes_files = sorted(session_dir.glob("notes-*.md"))
+    if not notes_files:
+        return
+    notes_path = notes_files[0]
+    text = notes_path.read_text(encoding="utf-8")
+    if _re.search(r"^scene_count:", text, flags=_re.MULTILINE):
+        text = _re.sub(r"^scene_count: .*$", f"scene_count: {count}", text, flags=_re.MULTILINE)
+    else:
+        text = _re.sub(r"^(---\n)", rf"\1scene_count: {count}\n", text, count=1)
+    notes_path.write_text(text, encoding="utf-8")
+
+
 def _entity_slugify(name: str) -> str:
     s = _re.sub(r"[^\w\s-]", "", name.lower())
     s = _re.sub(r"[\s_]+", "-", s)
@@ -508,6 +522,7 @@ async def extract_session_entities(payload: dict):
     async def _stream():
         scenes = _scene_splitter.split_into_scenes(data["notes_body"])
         total = len(scenes)
+        _update_scene_count(full, total)
         yield f"Found {total} scene{'s' if total != 1 else ''} in session notes\n"
 
         report = _extractors.ExtractionReport()
@@ -1057,6 +1072,7 @@ async def bulk_process(payload: dict):
             data = _load_session(session_dir)
             try:
                 scenes = _scene_splitter.split_into_scenes(data["notes_body"])
+                _update_scene_count(session_dir, len(scenes))
                 yield f"  → {len(scenes)} scenes\n"
 
                 report = _extractors.ExtractionReport()

@@ -583,17 +583,9 @@ _KIND_DIR_MAP = {"npc": "npcs", "npcs": "npcs", "location": "locations", "locati
                  "item": "items", "items": "items", "thread": "plot-threads", "threads": "plot-threads"}
 
 
-@app.post("/api/session/promote")
-async def promote_entities(payload: dict):
-    path = (payload.get("path") or "").strip()
-    selections = payload.get("selections", [])
-    full = (CODEX_ROOT / path).resolve()
-    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
-        raise HTTPException(404, "session not found")
-    session_slug = full.name
+def _promote_candidates(session_slug: str, selections: list) -> tuple[int, int]:
+    """Write a list of candidate selections to the codex. Returns (created, updated)."""
     created = updated = 0
-    entities = []
-
     for sel in selections:
         kind = sel.get("kind", "")
         dir_name = _KIND_DIR_MAP.get(kind)
@@ -608,11 +600,10 @@ async def promote_entities(payload: dict):
             target = kind_dir / f"{slug}.md"
             if not target.exists():
                 _create_thread_file_web(target, desc, scene, session_slug)
-                created += 1; action = "created"
+                created += 1
             else:
                 _append_thread_appearance_web(target, desc, scene, session_slug)
-                updated += 1; action = "updated"
-            entities.append({"name": desc[:60], "action": action, "path": f"{dir_name}/{slug}.md"})
+                updated += 1
         else:
             name = sel.get("name", "")
             desc = sel.get("description", "")
@@ -627,16 +618,14 @@ async def promote_entities(payload: dict):
                 _create_entity_file_web(target, name, kind_singular, desc, evidence, session_slug,
                                         allegiance=allegiance, locations_seen=locations_seen,
                                         carried_by=carried_by)
-                created += 1; action = "created"
+                created += 1
             else:
                 _append_entity_appearance_web(target, evidence, session_slug)
-                # Update allegiance if newly discovered
                 if allegiance:
                     txt = target.read_text(encoding="utf-8")
                     if "allegiance: \n" in txt or "allegiance: ''" in txt or 'allegiance: ""' in txt:
                         txt = _re.sub(r"^allegiance: .*$", f"allegiance: {allegiance}", txt, flags=_re.MULTILINE)
                         target.write_text(txt, encoding="utf-8")
-                # Merge new locations_seen
                 if locations_seen:
                     txt = target.read_text(encoding="utf-8")
                     m = _re.search(r"^locations_seen: (\[.*?\])$", txt, flags=_re.MULTILINE)
@@ -648,11 +637,9 @@ async def promote_entities(payload: dict):
                             target.write_text(txt, encoding="utf-8")
                         except Exception:
                             pass
-                updated += 1; action = "updated"
-            # Cross-link item → NPC: add item slug to NPC's carried_items
+                updated += 1
             if kind_singular == "item" and carried_by:
-                npc_name = carried_by[0]
-                npc_slug = _entity_slugify(npc_name)
+                npc_slug = _entity_slugify(carried_by[0])
                 npc_path = CODEX_ROOT / "npcs" / f"{npc_slug}.md"
                 if npc_path.exists():
                     txt = npc_path.read_text(encoding="utf-8")
@@ -666,9 +653,38 @@ async def promote_entities(payload: dict):
                                 npc_path.write_text(txt, encoding="utf-8")
                         except Exception:
                             pass
-            entities.append({"name": name, "action": action, "path": f"{dir_name}/{slug}.md"})
+    return created, updated
 
+
+@app.post("/api/session/promote")
+async def promote_entities(payload: dict):
+    path = (payload.get("path") or "").strip()
+    selections = payload.get("selections", [])
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+    session_slug = full.name
+
+    # Tag each selection with its kind key for the helper
+    created, updated = _promote_candidates(session_slug, selections)
     indexer.reindex(CODEX_ROOT, DB_PATH)
+
+    # Build entity list for UI response
+    entities = []
+    for sel in selections:
+        kind = sel.get("kind", "")
+        dir_name = _KIND_DIR_MAP.get(kind)
+        if not dir_name:
+            continue
+        if kind in ("thread", "threads"):
+            desc = sel.get("description", "")
+            slug = _entity_slugify(desc)[:60]
+            entities.append({"name": desc[:60], "action": "saved", "path": f"{dir_name}/{slug}.md"})
+        else:
+            name = sel.get("name", "")
+            slug = _entity_slugify(name)
+            entities.append({"name": name, "action": "saved", "path": f"{dir_name}/{slug}.md"})
+
     return {"created": created, "updated": updated, "entities": entities}
 
 
@@ -980,6 +996,7 @@ async def split_upload(
 async def bulk_process(payload: dict):
     """Stream progress while summarizing + extracting all (or unprocessed) sessions."""
     skip_existing = bool(payload.get("skip_existing", True))
+    auto_promote  = bool(payload.get("auto_promote", False))
     if not await ollama_client.is_reachable():
         raise HTTPException(503, "Ollama not reachable")
 
@@ -1089,12 +1106,32 @@ async def bulk_process(payload: dict):
                 }
                 (session_dir / "candidates.json").write_text(_json.dumps(candidates, indent=2), encoding="utf-8")
                 total_found = sum(len(v) for v in candidates.values())
-                yield f"  ✓ {total_found} entities found and saved\n"
+                yield f"  ✓ {total_found} entities found\n"
+
+                if auto_promote:
+                    yield f"  ✦ promoting to codex…\n"
+                    selections = []
+                    for npc in candidates["npcs"]:
+                        selections.append({**npc, "kind": "npcs"})
+                    for loc in candidates["locations"]:
+                        selections.append({**loc, "kind": "locations"})
+                    for itm in candidates["items"]:
+                        selections.append({**itm, "kind": "items"})
+                    for t in candidates["threads"]:
+                        selections.append({**t, "kind": "threads"})
+                    try:
+                        c, u = _promote_candidates(s["slug"], selections)
+                        yield f"  ✓ promoted: {c} created, {u} updated\n"
+                    except Exception as exc:
+                        yield f"  ✗ promote failed: {exc}\n"
+
                 done += 1
             except Exception as exc:
                 yield f"  ✗ extraction failed: {exc}\n"
                 failed += 1
 
+        if auto_promote:
+            indexer.reindex(CODEX_ROOT, DB_PATH)
         yield f"\n═══ Bulk process complete: {done} done, {skipped} skipped, {failed} failed ═══\n"
 
     return StreamingResponse(_stream(), media_type="text/plain")

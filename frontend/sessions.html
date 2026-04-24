@@ -25,6 +25,10 @@
           <input type="checkbox" id="skip-existing" checked>
           Skip already-processed
         </label>
+        <label class="bulk-check-label">
+          <input type="checkbox" id="auto-promote">
+          Auto-promote to codex
+        </label>
         <button type="button" class="bulk-btn" id="bulk-btn" onclick="startBulk()">
           ✦ Process All Sessions
         </button>
@@ -93,7 +97,8 @@
       const btn     = document.getElementById('bulk-btn');
       const logWrap = document.getElementById('bulk-log-wrap');
       const log     = document.getElementById('bulk-log');
-      const skip    = document.getElementById('skip-existing').checked;
+      const skip   = document.getElementById('skip-existing').checked;
+      const promote = document.getElementById('auto-promote').checked;
 
       btn.disabled = true;
       btn.textContent = '…processing';
@@ -103,7 +108,7 @@
       const resp = await fetch('/api/bulk/process', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({skip_existing: skip}),
+        body: JSON.stringify({skip_existing: skip, auto_promote: promote}),
       });
 
       if (!resp.ok) {

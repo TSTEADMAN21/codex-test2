@@ -72,8 +72,8 @@ The first `build` will take 10–15 minutes (downloads + bakes in the model). Af
 
 ```bash
 source .venv/bin/activate
-python scripts/ingest.py raw-notes/testing.txt --notetaker travis          # heuristic (instant)
-python scripts/ingest.py raw-notes/testing.txt --notetaker travis --use-llm  # LLM (5+ min, far better)
+python scripts/ingest.py raw-notes/session.txt --notetaker dm          # heuristic (instant)
+python scripts/ingest.py raw-notes/session.txt --notetaker dm --use-llm  # LLM (5+ min, far better)
 ```
 
 ## Sharing with your party

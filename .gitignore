@@ -1,3 +1,6 @@
+# Campaign data — personal content, never commit
+codex/
+
 __pycache__/
 *.py[cod]
 *$py.class

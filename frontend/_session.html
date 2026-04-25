@@ -117,6 +117,9 @@
       <button type="button" class="extract-btn" id="extract-btn" onclick="runExtraction()">
         {{ '↺ Re-extract' if has_candidates else '✦ Extract Entities' }}
       </button>
+      <button type="button" class="extract-btn moments-extract-btn" id="moments-btn" onclick="runMomentsExtraction()">
+        ✦ Extract Moments
+      </button>
       {% endif %}
     </div>
     <div id="extract-area">
@@ -126,6 +129,7 @@
       <p class="muted">Run extraction to find NPCs, locations, items, and plot threads in these notes.</p>
       {% endif %}
     </div>
+    <div id="moments-area" hidden></div>
   </section>
   {% endif %}
 
@@ -295,11 +299,47 @@
       }
 
       btn.disabled = false; btn.textContent = '↺ Re-extract';
+      // Auto-run moments extraction after entity extraction completes
+      runMomentsExtraction();
       const marker = full.indexOf('__CANDIDATES_JSON__');
       if (marker < 0) { area.innerHTML = '<p class="muted">No candidates found.</p>'; return; }
       try {
         renderReview(JSON.parse(full.slice(marker + '__CANDIDATES_JSON__'.length).trim()));
       } catch(e) { area.innerHTML = '<p class="muted">Parse error: ' + e + '</p>'; }
+    }
+
+    async function runMomentsExtraction() {
+      const btn  = document.getElementById('moments-btn');
+      const area = document.getElementById('moments-area');
+      btn.disabled = true;
+      btn.textContent = '…extracting';
+      area.innerHTML = '<pre class="extract-stream" id="moments-stream"></pre>';
+      area.hidden = false;
+      const pre = document.getElementById('moments-stream');
+
+      const resp = await fetch('/api/session/extract-moments', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: '{{ path }}'}),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        area.innerHTML = '<p class="muted">Error: ' + (err.detail || resp.statusText) + '</p>';
+        btn.disabled = false; btn.textContent = '✦ Extract Moments'; return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, {stream: true});
+        pre.textContent = full.trim();
+      }
+
+      btn.disabled = false; btn.textContent = '↺ Re-extract Moments';
     }
 
     function loadCandidates() {

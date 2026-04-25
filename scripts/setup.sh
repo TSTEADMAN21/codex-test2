@@ -89,6 +89,75 @@ else
     info "Model $MODEL already present."
 fi
 
+# --- Kokoro TTS ---
+info "Setting up Kokoro TTS narration engine..."
+
+KOKORO_VENV="$REPO_ROOT/backend/kokoro-venv"
+MODELS_DIR="$REPO_ROOT/backend/models"
+ONNX_FILE="$MODELS_DIR/kokoro-v1.0.onnx"
+VOICES_FILE="$MODELS_DIR/voices-v1.0.bin"
+
+# Find Python 3.10+ for the Kokoro venv (kokoro-onnx requires onnxruntime>=1.20.1)
+KOKORO_PYTHON=""
+for candidate in python3.14 python3.13 python3.12 python3.11 python3.10; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        KOKORO_PYTHON="$(command -v "$candidate")"
+        info "Found $candidate for Kokoro venv."
+        break
+    fi
+done
+if [[ -z "$KOKORO_PYTHON" ]]; then
+    case "$OSTYPE" in
+        darwin*)
+            if command -v brew >/dev/null 2>&1; then
+                info "Installing Python 3.14 via Homebrew for Kokoro..."
+                brew install python@3.14
+                KOKORO_PYTHON="$(brew --prefix python@3.14)/bin/python3.14"
+            else
+                warn "Python 3.10+ not found and Homebrew unavailable. Kokoro TTS will not be available."
+                warn "Install Python 3.10+ and re-run setup.sh to enable narration."
+                KOKORO_PYTHON=""
+            fi
+            ;;
+        *)
+            warn "Python 3.10+ not found. Kokoro TTS will not be available."
+            warn "Install Python 3.10+ and re-run setup.sh to enable narration."
+            KOKORO_PYTHON=""
+            ;;
+    esac
+fi
+
+if [[ -n "$KOKORO_PYTHON" ]]; then
+    # Create Kokoro venv if missing
+    if [[ ! -d "$KOKORO_VENV" ]]; then
+        info "Creating Kokoro venv at backend/kokoro-venv/"
+        "$KOKORO_PYTHON" -m venv "$KOKORO_VENV"
+    fi
+
+    info "Installing kokoro-onnx into Kokoro venv..."
+    "$KOKORO_VENV/bin/pip" install -q --upgrade pip >/dev/null 2>&1 || true
+    "$KOKORO_VENV/bin/pip" install -q kokoro-onnx soundfile
+
+    # Download model files if missing
+    mkdir -p "$MODELS_DIR"
+    BASE_URL="https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
+    if [[ ! -f "$ONNX_FILE" ]]; then
+        info "Downloading Kokoro model (310 MB)..."
+        curl -L -o "$ONNX_FILE" "$BASE_URL/kokoro-v1.0.onnx"
+    else
+        info "Kokoro model already present."
+    fi
+    if [[ ! -f "$VOICES_FILE" ]]; then
+        info "Downloading Kokoro voices (27 MB)..."
+        curl -L -o "$VOICES_FILE" "$BASE_URL/voices-v1.0.bin"
+    else
+        info "Kokoro voices already present."
+    fi
+    info "Kokoro TTS ready."
+else
+    warn "Skipping Kokoro TTS setup — narration will not work until Python 3.10+ is installed."
+fi
+
 # --- Build the search index ---
 info "Building search index from codex/ ..."
 python - <<'PY'

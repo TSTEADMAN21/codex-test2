@@ -44,6 +44,49 @@
     </button>
   </div>
 
+  <!-- Thread-specific toolbar — only shown for Plot Threads tab -->
+  <div class="thread-toolbar" id="thread-toolbar" {% if kind != 'thread' %}hidden{% endif %}>
+    <div class="thread-age-filter">
+      <span class="sort-label">Age</span>
+      <button type="button" class="age-btn active" data-age="all"     onclick="filterAge(this)">All</button>
+      <button type="button" class="age-btn"        data-age="recent"  onclick="filterAge(this)">Within 1 yr</button>
+      <button type="button" class="age-btn"        data-age="mid"     onclick="filterAge(this)">1–2 yrs</button>
+      <button type="button" class="age-btn"        data-age="old"     onclick="filterAge(this)">2+ yrs</button>
+    </div>
+    <div class="thread-status-filter">
+      <span class="sort-label">Status</span>
+      <button type="button" class="age-btn active" data-status="all"      onclick="filterStatus(this)">All</button>
+      <button type="button" class="age-btn"        data-status="open"     onclick="filterStatus(this)">Open</button>
+      <button type="button" class="age-btn"        data-status="dormant"  onclick="filterStatus(this)">Dormant</button>
+      <button type="button" class="age-btn"        data-status="resolved" onclick="filterStatus(this)">Resolved</button>
+    </div>
+    <div class="thread-actions-bar">
+      <button type="button" class="thread-tool-btn" id="consolidate-btn" onclick="runConsolidate()">✦ Consolidate Threads</button>
+      <button type="button" class="thread-tool-btn thread-tool-ghost" id="archive-resolved-btn" onclick="archiveResolved()">Archive Resolved</button>
+    </div>
+  </div>
+
+  <!-- Consolidation results panel -->
+  <div id="consolidate-panel" hidden>
+    <div class="consolidate-header">
+      <span class="consolidate-title">Thread Consolidation Suggestions</span>
+      <button type="button" class="btn-ghost" onclick="document.getElementById('consolidate-panel').hidden=true">✕</button>
+    </div>
+    <div id="consolidate-body"></div>
+  </div>
+
+  <!-- Sort + Tag filter bar -->
+  <div class="browse-controls-bar">
+    <div class="sort-control">
+      <label class="sort-label" for="sort-select">Sort</label>
+      <select id="sort-select" class="sort-select" onchange="applySort(this.value)">
+        <option value="az">A → Z</option>
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+      </select>
+    </div>
+  </div>
+
   <!-- Tag filter bar -->
   <div class="tag-filter-bar" id="tag-filter-bar">
     <div class="tag-filter-active" id="tag-filter-pills"></div>
@@ -133,6 +176,32 @@
       updateSelection();
     }
 
+    function applySort(mode) {
+      const grid = document.getElementById('entity-grid');
+      if (!grid) return;
+      const cards = Array.from(grid.children);
+      cards.sort((a, b) => {
+        if (mode === 'az') {
+          const na = (a.querySelector('.card-name,.thread-desc')?.textContent || '').trim().toLowerCase();
+          const nb = (b.querySelector('.card-name,.thread-desc')?.textContent || '').trim().toLowerCase();
+          return na.localeCompare(nb);
+        }
+        const da = a.dataset.firstSeen || '';
+        const db = b.dataset.firstSeen || '';
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return mode === 'newest' ? db.localeCompare(da) : da.localeCompare(db);
+      });
+      cards.forEach(c => grid.appendChild(c));
+    }
+
+    // Re-apply sort after every HTMX grid swap
+    document.addEventListener('htmx:afterSwap', () => {
+      const sel = document.getElementById('sort-select');
+      if (sel && sel.value !== 'az') applySort(sel.value);
+    });
+
     function setActiveTab(btn) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
@@ -145,6 +214,11 @@
       if (atb) atb.hidden = (currentKind !== 'npc');
       const ab = document.getElementById('allegiance-group-btn');
       if (ab) ab.classList.remove('active');
+      const ttb = document.getElementById('thread-toolbar');
+      if (ttb) ttb.hidden = (currentKind !== 'thread');
+      // Reset thread filter state when switching tabs
+      _activeAge = 'all';
+      _activeStatus = 'all';
     }
 
     // ── Allegiance grouping ───────────────────────────────────────────────────
@@ -352,6 +426,135 @@
         const cardTags = new Set(card.dataset.tags.split(',').map(t => t.trim()).filter(Boolean));
         card.style.display = [...activeTags].some(t => cardTags.has(t)) ? '' : 'none';
       });
+    }
+
+    // ── Thread filters ────────────────────────────────────────────────────────
+    let _activeAge = 'all';
+    let _activeStatus = 'all';
+
+    const TODAY_MS = new Date('2026-04-24').getTime();
+
+    function _threadCardDate(card) {
+      const d = card.dataset.firstSeen || '';
+      return d ? new Date(d).getTime() : null;
+    }
+
+    function _applyThreadFilters() {
+      document.querySelectorAll('.thread-card').forEach(card => {
+        let show = true;
+
+        // Age filter
+        if (_activeAge !== 'all') {
+          const ms = _threadCardDate(card);
+          if (ms === null) {
+            show = false;
+          } else {
+            const ageYrs = (TODAY_MS - ms) / (1000 * 60 * 60 * 24 * 365.25);
+            if (_activeAge === 'recent' && ageYrs >= 1)   show = false;
+            if (_activeAge === 'mid'    && (ageYrs < 1 || ageYrs >= 2)) show = false;
+            if (_activeAge === 'old'    && ageYrs < 2)    show = false;
+          }
+        }
+
+        // Status filter
+        if (_activeStatus !== 'all' && show) {
+          const badge = card.querySelector('.thread-status');
+          const cardStatus = badge ? badge.textContent.trim().toLowerCase() : '';
+          if (cardStatus !== _activeStatus) show = false;
+        }
+
+        card.style.display = show ? '' : 'none';
+      });
+    }
+
+    function filterAge(btn) {
+      document.querySelectorAll('.thread-age-filter .age-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _activeAge = btn.dataset.age;
+      _applyThreadFilters();
+    }
+
+    function filterStatus(btn) {
+      document.querySelectorAll('.thread-status-filter .age-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _activeStatus = btn.dataset.status;
+      _applyThreadFilters();
+    }
+
+    // Re-apply thread filters after HTMX grid swap
+    document.body.addEventListener('htmx:afterSwap', e => {
+      if (e.detail.target.id === 'grid-area' && currentKind === 'thread') {
+        _applyThreadFilters();
+      }
+    });
+
+    // ── Archive resolved threads ──────────────────────────────────────────────
+    async function archiveResolved() {
+      const btn = document.getElementById('archive-resolved-btn');
+      btn.textContent = '…archiving';
+      btn.disabled = true;
+      try {
+        const resp = await fetch('/api/threads/archive-resolved', { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok) { alert(data.detail || 'Archive failed'); return; }
+        btn.textContent = `✓ Archived ${data.archived}`;
+        // Reload grid
+        const html = await fetch('/browse/grid?kind=thread').then(r => r.text());
+        document.getElementById('grid-area').innerHTML = html;
+        buildTagFilter();
+      } catch (e) {
+        alert('Archive failed: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        setTimeout(() => { btn.textContent = 'Archive Resolved'; }, 3000);
+      }
+    }
+
+    // ── Consolidate threads (LLM grouping) ────────────────────────────────────
+    async function runConsolidate() {
+      const panel = document.getElementById('consolidate-panel');
+      const body  = document.getElementById('consolidate-body');
+      const btn   = document.getElementById('consolidate-btn');
+
+      panel.hidden = false;
+      body.innerHTML = '<p class="muted consolidate-loading">✦ Asking the LLM to group related threads…</p>';
+      btn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/threads/consolidate', { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok) { body.innerHTML = `<p class="muted">Error: ${data.detail}</p>`; return; }
+
+        if (!data.groups || data.groups.length === 0) {
+          body.innerHTML = '<p class="muted">No consolidation suggestions — all threads look distinct.</p>';
+          return;
+        }
+
+        body.innerHTML = '';
+        data.groups.forEach(group => {
+          const div = document.createElement('div');
+          div.className = 'consolidate-group';
+          div.innerHTML = `
+            <div class="consolidate-group-label">
+              <span class="consolidate-group-title">${escHtml(group.theme)}</span>
+              <span class="consolidate-group-count">${group.threads.length} threads</span>
+            </div>
+            <ul class="consolidate-thread-list">
+              ${group.threads.map(t => `<li>${escHtml(t)}</li>`).join('')}
+            </ul>
+            ${group.suggestion ? `<p class="consolidate-suggestion">${escHtml(group.suggestion)}</p>` : ''}
+          `;
+          body.appendChild(div);
+        });
+      } catch (e) {
+        body.innerHTML = `<p class="muted">Error: ${e.message}</p>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function escHtml(s) {
+      return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
     // Close picker when clicking outside

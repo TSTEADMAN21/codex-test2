@@ -6,7 +6,7 @@
 
   {% if e.kind == 'thread' %}
   {# ── Thread card ─────────────────────────────────────────────────────── #}
-  <div class="entity-card thread-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}">
+  <div class="entity-card thread-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}" data-first-seen="{{ e.first_seen or '' }}">
     <label class="card-select-wrap">
       <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name[:40] }}" onchange="updateSelection()">
     </label>
@@ -17,7 +17,7 @@
       </div>
       <a class="thread-desc" href="/entity?path={{ e.path }}">{{ e.name }}</a>
       {% if e.first_seen %}
-      <div class="card-meta">Opened {{ e.first_seen }}</div>
+      <div class="thread-opened">📅 {{ e.first_seen }}</div>
       {% endif %}
       <div class="thread-actions">
         {% if e.status == 'open' %}
@@ -35,7 +35,7 @@
 
   {% elif e.kind == 'party' %}
   {# ── Party member card ────────────────────────────────────────────────── #}
-  <div class="entity-card party-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}">
+  <div class="entity-card party-card" data-path="{{ e.path }}" data-tags="{{ e.tags | join(',') }}" data-first-seen="{{ e.first_seen or '' }}">
     <label class="card-select-wrap">
       <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name }}" onchange="updateSelection()">
     </label>
@@ -70,7 +70,8 @@
   {% set all_tags = e.tags + ([e.allegiance] if e.allegiance else []) + e.locations_seen + ([e.disposition] if e.disposition else []) + year_tag %}
   <div class="entity-card" data-path="{{ e.path }}"
        data-tags="{{ all_tags | join(',') }}"
-       data-allegiance="{{ e.allegiance }}">
+       data-allegiance="{{ e.allegiance }}"
+       data-first-seen="{{ e.first_seen or '' }}">
     <div class="entity-card-inner">
       <label class="card-select-wrap">
         <input type="checkbox" class="card-checkbox" value="{{ e.path }}" data-name="{{ e.name }}" onchange="updateSelection()">

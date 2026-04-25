@@ -59,6 +59,13 @@ class DisguiseAlert(BaseModel):
     evidence_quote: str
 
 
+class PartyMoment(BaseModel):
+    character: str
+    moment: str
+    evidence_quote: str
+    scene: int = 0
+
+
 class SceneExtraction(BaseModel):
     npcs: List[NPC] = Field(default_factory=list)
     locations: List[Location] = Field(default_factory=list)
@@ -77,6 +84,10 @@ class ExtractionReport:
 
 def _normalize_for_match(s: str) -> str:
     s = s.lower()
+    # Strip markdown backslash escapes (\- → -, \+ → +, etc.)
+    s = re.sub(r"\\([^a-zA-Z])", r"\1", s)
+    # Normalize dashes: em-dash, en-dash → hyphen
+    s = re.sub(r"[—–]", "-", s)
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
@@ -170,6 +181,53 @@ async def extract_scene(scene: scene_splitter.Scene, prompts_dir: Path,
         return SceneExtraction(**parsed), None
     except ValidationError as e:
         return None, f"pydantic validation failed: {e}"
+
+
+async def extract_party_moments(
+    scenes: list[scene_splitter.Scene],
+    prompts_dir: Path,
+    model: Optional[str] = None,
+    progress=None,
+) -> list[PartyMoment]:
+    """Extract significant party member moments from all scenes."""
+    system = (prompts_dir / "system_constraints.md").read_text(encoding="utf-8")
+    task = (prompts_dir / "extract_party_moments.md").read_text(encoding="utf-8")
+    all_moments: list[PartyMoment] = []
+
+    for scene in scenes:
+        if progress:
+            progress(scene.index, len(scenes), scene.title)
+        user_prompt = (
+            f"{task}\n\n---\n\nSCENE {scene.index} TEXT:\n\n{scene.text}\n\n"
+            "---\n\nReturn ONLY the JSON object."
+        )
+        raw = await _call_ollama_json(system, user_prompt, model)
+        if not raw or raw.startswith("__ERROR__"):
+            continue
+        try:
+            parsed = json.loads(raw)
+            moments_raw = parsed.get("moments", [])
+        except (json.JSONDecodeError, AttributeError):
+            continue
+
+        for m in moments_raw:
+            try:
+                m["scene"] = scene.index  # override LLM-returned scene number with actual index
+                pm = PartyMoment(**m)
+            except Exception:
+                continue
+            if not _quote_found(pm.evidence_quote, scene.text):
+                continue
+            canonical = next(
+                (p for p in PARTY_MEMBERS_LOWER
+                 if p in pm.character.lower()),
+                None,
+            )
+            if not canonical:
+                continue
+            all_moments.append(pm)
+
+    return all_moments
 
 
 async def extract_session(scenes: list[scene_splitter.Scene], prompts_dir: Path,

@@ -34,7 +34,9 @@ Three run paths, ordered from simplest to most portable.
 ./scripts/setup.sh
 ```
 
-Detects your OS, installs Ollama if missing, pulls `llama3.1:8b`, creates a Python venv, installs dependencies, and builds the search index. Works on macOS and Linux. On Windows, run it from WSL or Git Bash.
+Detects your OS, installs Ollama if missing, pulls `llama3.1:8b`, creates a Python venv, installs dependencies, builds the search index, and sets up the Kokoro TTS narration engine (downloads ~340 MB of model files on first run). Works on macOS and Linux. On Windows, run it from WSL or Git Bash.
+
+> **Note:** Kokoro TTS requires Python 3.10+. The script will install it via Homebrew on macOS if needed. If you skip narration, everything else works fine.
 
 Then:
 ```bash

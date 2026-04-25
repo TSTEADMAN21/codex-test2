@@ -20,21 +20,65 @@
     {% if kind == 'party' %}
     <button type="button" class="edit-bar-btn" id="move-npc-btn" onclick="moveToNPC()">→ Move to NPCs</button>
     {% endif %}
+    {% if kind in ('party', 'npc') %}
+    <button type="button" class="edit-bar-btn overview-gen-btn" id="overview-btn" onclick="generateOverview()">
+      {{ '↺ Regenerate Overview' if overview else '✦ Generate Overview' }}
+    </button>
+    {% endif %}
     <button type="button" class="edit-bar-btn" id="edit-btn" onclick="startEdit()">✎ Edit</button>
   </div>
 
-  <div id="entity-view">
-    {% include "_entity_partial.html" %}
+  {% if kind == 'party' %}
+  <!-- Tab bar -->
+  <div class="entity-tabs" id="entity-tabs">
+    <button type="button" class="tab-btn active" id="tab-codex" onclick="switchTab('codex')">Codex</button>
+    <button type="button" class="tab-btn" id="tab-sheet" onclick="switchTab('sheet')">Character Sheet</button>
+  </div>
+  {% endif %}
+
+  <div id="overview-stream-area" hidden>
+    <pre class="overview-stream" id="overview-stream"></pre>
   </div>
 
-  <div id="entity-edit" hidden>
-    <textarea class="edit-textarea" id="edit-textarea" spellcheck="true"></textarea>
-    <div class="edit-actions">
-      <button type="button" class="btn-primary" onclick="saveEdit()">✓ Save</button>
-      <button type="button" class="btn-ghost" onclick="cancelEdit()">Cancel</button>
-      <span class="edit-status" id="edit-status"></span>
+  <!-- Codex tab -->
+  <div id="panel-codex">
+    <div id="entity-view">
+      {% include "_entity_partial.html" %}
+    </div>
+    <div id="entity-edit" hidden>
+      <textarea class="edit-textarea" id="edit-textarea" spellcheck="true"></textarea>
+      <div class="edit-actions">
+        <button type="button" class="btn-primary" onclick="saveEdit()">✓ Save</button>
+        <button type="button" class="btn-ghost" onclick="cancelEdit()">Cancel</button>
+        <span class="edit-status" id="edit-status"></span>
+      </div>
     </div>
   </div>
+
+  {% if kind == 'party' %}
+  <!-- Character Sheet tab -->
+  <div id="panel-sheet" hidden>
+    <div id="sheet-content">
+      {% if ddb_id %}
+        <div id="sheet-loaded">Loading…</div>
+      {% else %}
+        <div class="sheet-empty">
+          <p class="muted">No character sheet linked yet.</p>
+          <div class="ddb-import-form">
+            <label class="ddb-import-label">D&amp;D Beyond Character ID</label>
+            <div class="ddb-import-row">
+              <input type="text" id="ddb-id-input" class="ddb-id-input" placeholder="e.g. 132431251"
+                     title="Character ID from your D&D Beyond URL">
+              <button type="button" class="extract-btn" onclick="importDDB()">⬇ Import</button>
+            </div>
+            <p class="ddb-import-hint muted">Found in your D&amp;D Beyond URL: dndbeyond.com/characters/<strong>132431251</strong><br>
+            Character sharing must be enabled on D&amp;D Beyond for the import to work.</p>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   <footer>
     <small class="path">{{ path }}</small>
@@ -42,8 +86,203 @@
 
   <script>
     const _PATH = '{{ path }}';
+    const _DDB_ID = '{{ ddb_id or "" }}';
     let _original = '';
 
+    // ── Tab switching ────────────────────────────────────────────────────
+    function switchTab(tab) {
+      document.getElementById('tab-codex').classList.toggle('active', tab === 'codex');
+      document.getElementById('tab-sheet').classList.toggle('active', tab === 'sheet');
+      document.getElementById('panel-codex').hidden = tab !== 'codex';
+      document.getElementById('panel-sheet').hidden = tab !== 'sheet';
+      if (tab === 'sheet' && _DDB_ID && !_sheetLoaded) loadSheet();
+    }
+
+    let _sheetLoaded = false;
+    async function loadSheet() {
+      const area = document.getElementById('sheet-loaded') || document.getElementById('sheet-content');
+      try {
+        const resp = await fetch('/api/entity/ddb-sheet?path=' + encodeURIComponent(_PATH));
+        if (!resp.ok) throw new Error(resp.statusText);
+        const data = await resp.json();
+        area.innerHTML = renderSheet(data);
+        _sheetLoaded = true;
+      } catch(e) {
+        area.innerHTML = '<p class="muted">Could not load sheet: ' + e + '</p>';
+      }
+    }
+
+    async function importDDB() {
+      const id = (document.getElementById('ddb-id-input').value || '').trim();
+      if (!id) return;
+      const btn = document.querySelector('.ddb-import-form .extract-btn');
+      btn.disabled = true; btn.textContent = '…importing';
+      const resp = await fetch('/api/entity/import-ddb', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: _PATH, character_id: id}),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        btn.disabled = false; btn.textContent = '⬇ Import';
+        document.querySelector('.ddb-import-hint').textContent = 'Error: ' + (err.detail || resp.statusText);
+        return;
+      }
+      location.reload();
+    }
+
+    function _esc(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function _mod(score) {
+      const m = Math.floor((score - 10) / 2);
+      return (m >= 0 ? '+' : '') + m;
+    }
+
+    function renderSheet(c) {
+      const STAT_NAMES = {1:'STR',2:'DEX',3:'CON',4:'INT',5:'WIS',6:'CHA'};
+      const statMap = {};
+      for (const s of (c.stats || [])) statMap[s.id] = s.value;
+
+      const classes = (c.classes || []).map(cl => {
+        const sub = cl.subclassDefinition ? ' (' + cl.subclassDefinition.name + ')' : '';
+        return _esc(cl.definition.name + sub) + ' ' + cl.level;
+      }).join(' / ');
+
+      const race = _esc((c.race || {}).fullName || '');
+      const bg   = _esc(((c.background || {}).definition || (c.background || {}).customBackground || {}).name || '');
+      const hp   = c.overrideHitPoints ?? ((c.baseHitPoints || 0) + (c.bonusHitPoints || 0));
+      const ddbUrl = c.readonlyUrl || '';
+
+      // Ability scores
+      let statsHtml = '<div class="cs-stats">';
+      for (let i = 1; i <= 6; i++) {
+        const val = statMap[i] ?? '—';
+        statsHtml += `<div class="cs-stat">
+          <div class="cs-stat-name">${STAT_NAMES[i]}</div>
+          <div class="cs-stat-mod">${val !== '—' ? _mod(val) : '—'}</div>
+          <div class="cs-stat-score">${val}</div>
+        </div>`;
+      }
+      statsHtml += '</div>';
+
+      // Inventory — split into notable (magical/equipped/attuned) and mundane
+      const notable = [], mundane = [];
+      for (const item of (c.inventory || [])) {
+        const d = item.definition || {};
+        const isMagic = d.magic || item.isAttuned || d.rarity !== 'Common';
+        const isEquipped = item.equipped || item.isAttuned;
+        const name = _esc(d.name || '?');
+        const qty  = item.quantity > 1 ? ` ×${item.quantity}` : '';
+        const badges = [item.isAttuned ? '<span class="cs-badge cs-attuned">attuned</span>' : '',
+                        item.equipped  ? '<span class="cs-badge cs-equipped">equipped</span>' : ''].filter(Boolean).join(' ');
+        if (isMagic || isEquipped) notable.push(`<li>${name}${qty} ${badges}</li>`);
+        else mundane.push(`<li>${name}${qty}</li>`);
+      }
+
+      // Spells
+      const spellsByLevel = {};
+      const allSpells = [
+        ...(c.spells?.class || []),
+        ...(c.spells?.race  || []),
+        ...(c.spells?.feat  || []),
+      ];
+      for (const sp of allSpells) {
+        const d = sp.definition || {};
+        const lvl = d.level ?? 0;
+        if (!spellsByLevel[lvl]) spellsByLevel[lvl] = [];
+        const name = _esc(d.name || '?');
+        if (!spellsByLevel[lvl].includes(name)) spellsByLevel[lvl].push(name);
+      }
+      let spellsHtml = '';
+      for (const lvl of Object.keys(spellsByLevel).sort((a,b) => a-b)) {
+        const label = lvl == 0 ? 'Cantrips' : `Level ${lvl}`;
+        spellsHtml += `<div class="cs-spell-group"><span class="cs-spell-level">${label}</span> ${spellsByLevel[lvl].join(', ')}</div>`;
+      }
+
+      // Feats
+      const feats = (c.feats || []).map(f => _esc((f.definition || {}).name || '?')).join(', ');
+
+      // Currency
+      const curr = c.currencies || {};
+      const currParts = [];
+      if (curr.pp) currParts.push(curr.pp + ' pp');
+      if (curr.gp) currParts.push(curr.gp + ' gp');
+      if (curr.sp) currParts.push(curr.sp + ' sp');
+      if (curr.cp) currParts.push(curr.cp + ' cp');
+
+      // Notes
+      const notes = c.notes || {};
+      const noteFields = [
+        ['Personality', notes.personalityTraits],
+        ['Ideals',      notes.ideals],
+        ['Bonds',       notes.bonds],
+        ['Flaws',       notes.flaws],
+        ['Allies',      notes.allies],
+        ['Enemies',     notes.enemies],
+        ['Other Notes', notes.otherNotes],
+      ].filter(([,v]) => v && v.trim());
+
+      return `
+      <div class="char-sheet">
+        <div class="cs-header">
+          <div class="cs-identity">
+            <div class="cs-name">${_esc(c.name)}</div>
+            <div class="cs-subtitle">${classes}${race ? ' · ' + race : ''}${bg ? ' · ' + bg : ''}</div>
+          </div>
+          <div class="cs-vitals">
+            <div class="cs-vital"><span class="cs-vital-label">HP</span><span class="cs-vital-val">${hp}</span></div>
+            ${c.age     ? `<div class="cs-vital"><span class="cs-vital-label">Age</span><span class="cs-vital-val">${_esc(c.age)}</span></div>` : ''}
+            ${c.height  ? `<div class="cs-vital"><span class="cs-vital-label">Height</span><span class="cs-vital-val">${_esc(c.height)}</span></div>` : ''}
+            ${c.weight  ? `<div class="cs-vital"><span class="cs-vital-label">Weight</span><span class="cs-vital-val">${_esc(c.weight)}</span></div>` : ''}
+            ${currParts.length ? `<div class="cs-vital"><span class="cs-vital-label">Currency</span><span class="cs-vital-val">${currParts.join(' · ')}</span></div>` : ''}
+          </div>
+          ${ddbUrl ? `<a class="cs-ddb-link" href="${_esc(ddbUrl)}" target="_blank" rel="noopener">View on D&amp;D Beyond ↗</a>` : ''}
+        </div>
+
+        ${statsHtml}
+
+        ${notable.length ? `
+        <div class="cs-section">
+          <h3 class="cs-section-title">Notable Equipment</h3>
+          <ul class="cs-item-list">${notable.join('')}</ul>
+        </div>` : ''}
+
+        ${mundane.length ? `
+        <details class="cs-mundane">
+          <summary class="cs-mundane-toggle">All inventory (${mundane.length + notable.length} items)</summary>
+          <ul class="cs-item-list cs-item-list-mundane">${mundane.join('')}</ul>
+        </details>` : ''}
+
+        ${spellsHtml ? `
+        <div class="cs-section">
+          <h3 class="cs-section-title">Spells</h3>
+          <div class="cs-spells">${spellsHtml}</div>
+        </div>` : ''}
+
+        ${feats ? `
+        <div class="cs-section">
+          <h3 class="cs-section-title">Feats &amp; Fighting Styles</h3>
+          <p class="cs-feats">${feats}</p>
+        </div>` : ''}
+
+        ${noteFields.length ? `
+        <div class="cs-section">
+          <h3 class="cs-section-title">Character Notes</h3>
+          ${noteFields.map(([label, val]) => `
+          <div class="cs-note-row">
+            <span class="cs-note-label">${label}</span>
+            <span class="cs-note-val">${_esc(val)}</span>
+          </div>`).join('')}
+        </div>` : ''}
+      </div>`;
+    }
+
+    // Auto-load sheet if DDB id is set and sheet tab was previously active
+    if (_DDB_ID && location.hash === '#sheet') switchTab('sheet');
+
+    // ── Entity editing ───────────────────────────────────────────────────
     async function moveToKind(kind, btnId) {
       const btn = document.getElementById(btnId);
       btn.disabled = true;
@@ -66,6 +305,40 @@
 
     function moveToParty() { moveToKind('party', 'move-party-btn'); }
     function moveToNPC()   { moveToKind('npc',   'move-npc-btn');   }
+
+    async function generateOverview() {
+      const btn        = document.getElementById('overview-btn');
+      const streamArea = document.getElementById('overview-stream-area');
+      const streamPre  = document.getElementById('overview-stream');
+      btn.disabled = true;
+      btn.textContent = '…generating';
+      streamArea.hidden = false;
+      streamPre.textContent = '';
+
+      const resp = await fetch('/api/entity/summarize', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: _PATH}),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        streamPre.textContent = 'Error: ' + (err.detail || resp.statusText);
+        btn.disabled = false; btn.textContent = '✦ Generate Overview';
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, {stream: true});
+        streamPre.textContent = full;
+      }
+      setTimeout(() => location.reload(), 500);
+    }
 
     async function startEdit() {
       const btn = document.getElementById('edit-btn');

@@ -1,6 +1,10 @@
 # Campaign data — personal content, never commit
 codex/
 
+# Kokoro TTS model files — large binaries, download separately
+backend/models/
+backend/kokoro-venv/
+
 __pycache__/
 *.py[cod]
 *$py.class

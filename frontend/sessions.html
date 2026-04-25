@@ -32,6 +32,9 @@
         <button type="button" class="bulk-btn" id="bulk-btn" onclick="startBulk()">
           ✦ Process All Sessions
         </button>
+        <button type="button" class="bulk-btn moments-backfill-btn" id="backfill-btn" onclick="startMomentsBackfill()">
+          ✦ Backfill Party Moments
+        </button>
       </div>
     </div>
     <div id="bulk-log-wrap" hidden>
@@ -116,6 +119,43 @@
         log.textContent = 'Error: ' + (err.detail || resp.statusText);
         btn.disabled = false;
         btn.textContent = '✦ Process All Sessions';
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        log.textContent += decoder.decode(value, {stream: true});
+        log.scrollTop = log.scrollHeight;
+      }
+
+      btn.disabled = false;
+      btn.textContent = '↺ Run Again';
+    }
+
+    async function startMomentsBackfill() {
+      const btn     = document.getElementById('backfill-btn');
+      const logWrap = document.getElementById('bulk-log-wrap');
+      const log     = document.getElementById('bulk-log');
+
+      btn.disabled = true;
+      btn.textContent = '…extracting';
+      logWrap.hidden = false;
+      log.textContent = '';
+
+      const resp = await fetch('/api/bulk/backfill-moments', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({detail: resp.statusText}));
+        log.textContent = 'Error: ' + (err.detail || resp.statusText);
+        btn.disabled = false;
+        btn.textContent = '✦ Backfill Party Moments';
         return;
       }
 

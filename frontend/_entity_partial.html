@@ -19,8 +19,20 @@
     {% endif %}
   </div>
 
-  {% if description %}
+  {% if overview %}
+  <div class="entity-overview">
+    {% for para in overview.split('\n\n') %}
+    <p>{{ para.strip() }}</p>
+    {% endfor %}
+  </div>
+  {% elif description %}
   <p class="entity-description">{{ description }}</p>
+  {% endif %}
+  {% if overview and description %}
+  <details class="description-detail">
+    <summary class="description-detail-toggle">Physical description</summary>
+    <p class="entity-description">{{ description }}</p>
+  </details>
   {% endif %}
 
   {% if locations_seen %}
@@ -32,7 +44,14 @@
   </div>
   {% endif %}
 
-  {% if carried_items %}
+  {% if carried_items_linked %}
+  <div class="entity-carried-items">
+    <span class="meta-label">Carries</span>
+    {% for item in carried_items_linked %}
+    <a class="item-tag item-tag-linked" href="/entity?path={{ item.path }}">⚔ {{ item.name }}</a>
+    {% endfor %}
+  </div>
+  {% elif carried_items %}
   <div class="entity-carried-items">
     <span class="meta-label">Carries</span>
     {% for item in carried_items %}
@@ -98,6 +117,26 @@
         {% endfor %}
       </div>
       {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if significant_moments %}
+  <section class="significant-moments">
+    <h3>Significant Moments</h3>
+    {% for block in significant_moments %}
+    <div class="moment-block">
+      <div class="moment-date">
+        {{ block.date }}
+        {% if block.session_slug %}
+          <span class="moment-slug">{{ block.session_slug }}</span>
+        {% endif %}
+      </div>
+      <ul class="moment-list">
+        {%- for m in block.moments %}<li class="moment-entry">{{ m }}</li>
+        {%- endfor %}
+      </ul>
     </div>
     {% endfor %}
   </section>

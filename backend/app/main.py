@@ -42,6 +42,7 @@ def _question_to_fts(question: str) -> str:
     return " OR ".join(f'"{t}"' for t in terms)
 
 import json as _json
+import httpx
 import edge_tts
 
 from fastapi import FastAPI, Form, HTTPException, Query, Request, UploadFile
@@ -51,7 +52,7 @@ from fastapi.templating import Jinja2Templates
 
 import frontmatter as _fm
 
-from . import db, entity_reader, extractors as _extractors, indexer, ollama_client, scene_splitter as _scene_splitter
+from . import db, entity_reader, extractors as _extractors, indexer, kokoro_client, ollama_client, scene_splitter as _scene_splitter
 
 ROOT = Path(__file__).resolve().parents[2]
 CODEX_ROOT = Path(os.environ.get("CODEX_ROOT", ROOT / "codex"))
@@ -195,6 +196,37 @@ async def api_documents(kind: str | None = None):
 _KIND_DIRS = {"npc": "npcs", "location": "locations", "item": "items", "thread": "plot-threads", "party": "party"}
 
 
+def _get_items_for_carrier(carrier_name: str) -> list[dict]:
+    """Return all items whose carried_by list includes carrier_name (case-insensitive)."""
+    items_dir = CODEX_ROOT / "items"
+    if not items_dir.exists():
+        return []
+    name_lower = carrier_name.lower()
+    results = []
+    for md in items_dir.glob("*.md"):
+        try:
+            data = entity_reader.load(md)
+            carriers = [c.lower() for c in data.get("carried_by", [])]
+            if any(name_lower in c or c in name_lower for c in carriers):
+                results.append({
+                    "name": data["name"],
+                    "path": f"items/{md.name}",
+                })
+        except Exception:
+            continue
+    return sorted(results, key=lambda x: x["name"].lower())
+
+
+def _inject_carried_items(data: dict) -> dict:
+    """For party/npc entities, replace the static carried_items list with a live reverse-lookup."""
+    if data.get("kind") in ("party", "npc"):
+        live = _get_items_for_carrier(data["name"])
+        if live:
+            data["carried_items"] = [item["name"] for item in live]
+            data["carried_items_linked"] = live
+    return data
+
+
 def _load_entities_of_kind(kind: str) -> list[dict]:
     dir_name = _KIND_DIRS.get(kind, kind + "s")
     kind_dir = CODEX_ROOT / dir_name
@@ -205,6 +237,8 @@ def _load_entities_of_kind(kind: str) -> list[dict]:
         try:
             data = entity_reader.load(md)
             data["path"] = f"{dir_name}/{md.name}"
+            if kind in ("party", "npc"):
+                data = _inject_carried_items(data)
             entities.append(data)
         except Exception:
             continue
@@ -236,6 +270,7 @@ async def entity_partial(request: Request, path: str):
         raise HTTPException(404, "entity not found")
     try:
         data = entity_reader.load(full)
+        data = _inject_carried_items(data)
     except Exception as exc:
         raise HTTPException(500, f"could not parse entity: {exc}")
     return templates.TemplateResponse(request, "_entity_partial.html", {
@@ -251,6 +286,7 @@ async def entity_page(request: Request, path: str):
         raise HTTPException(404, "entity not found")
     try:
         data = entity_reader.load(full)
+        data = _inject_carried_items(data)
     except Exception as exc:
         raise HTTPException(500, f"could not parse entity: {exc}")
     return templates.TemplateResponse(request, "_entity.html", {
@@ -320,9 +356,12 @@ async def summarize_session(payload: dict):
         raise HTTPException(400, "no session notes found to summarize")
 
     prompt = (
-        "Write a 2-3 paragraph narrative session recap in past tense, as if briefing a player who missed the session. "
-        "Cover: what the party investigated or accomplished, key NPCs they met, any combat or significant skill checks, "
-        "and which plot threads advanced or opened. Use the character names exactly as written. "
+        "Write a 3-5 paragraph narrative session recap in past tense, as if briefing a player who missed the session. "
+        "Be thorough — more detail is better. Cover: what the party investigated or accomplished, every key NPC they "
+        "encountered and what role they played, any combat or significant skill checks and their outcomes, important "
+        "items found or exchanged, and which plot threads advanced, opened, or closed. "
+        "If any character had a personal moment or revelation, include it. "
+        "Use the character names exactly as written. "
         "Do not invent any details not present in the notes. Do not include stat blocks or canonical lore.\n\n"
         f"REAL DATE: {data['real_date']}\n"
         f"IN-GAME DATE: {data['in_game_date']}\n\n"
@@ -345,8 +384,6 @@ async def summarize_session(payload: dict):
 
     return StreamingResponse(stream_and_save(), media_type="text/plain")
 
-
-NARRATION_VOICE = os.environ.get("NARRATION_VOICE", "en-US-GuyNeural")
 
 @app.get("/api/entities/names")
 async def entity_names():
@@ -375,26 +412,16 @@ async def entity_names():
     return results
 
 
-_VOICE_CACHE: list[dict] | None = None
 
 @app.get("/api/voices")
 async def list_voices():
-    global _VOICE_CACHE
-    if _VOICE_CACHE is None:
-        all_voices = await edge_tts.list_voices()
-        _VOICE_CACHE = [
-            {"id": v["ShortName"], "label": v["FriendlyName"]}
-            for v in all_voices
-            if v["Locale"].startswith("en-")
-        ]
-        _VOICE_CACHE.sort(key=lambda v: v["id"])
-    return {"voices": _VOICE_CACHE, "default": NARRATION_VOICE}
+    return {"voices": kokoro_client.VOICES, "default": kokoro_client.DEFAULT_VOICE}
 
 
 @app.post("/api/session/narrate")
 async def narrate_session(payload: dict):
     path   = (payload.get("path") or "").strip()
-    voice  = (payload.get("voice") or NARRATION_VOICE).strip()
+    voice  = (payload.get("voice") or kokoro_client.DEFAULT_VOICE).strip()
     source = (payload.get("source") or "summary").strip()
     full = (CODEX_ROOT / path).resolve()
     if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
@@ -412,8 +439,14 @@ async def narrate_session(payload: dict):
             raise HTTPException(400, "no summary found — generate a summary first")
         out_file = full / "narration.mp3"
 
-    communicate = edge_tts.Communicate(_strip_markdown(text), voice)
-    await communicate.save(str(out_file))
+    try:
+        if kokoro_client.is_edge_voice(voice):
+            communicate = edge_tts.Communicate(_strip_markdown(text), voice)
+            await communicate.save(str(out_file))
+        else:
+            await kokoro_client.generate(_strip_markdown(text), out_file, voice=voice)
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc))
     return {"path": path, "ready": True, "voice": voice, "source": source}
 
 
@@ -623,6 +656,121 @@ async def extract_session_entities(payload: dict):
     return StreamingResponse(_stream(), media_type="text/plain")
 
 
+@app.post("/api/session/extract-moments")
+async def extract_session_moments(payload: dict):
+    path = (payload.get("path") or "").strip()
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.is_dir():
+        raise HTTPException(404, "session not found")
+    if not await ollama_client.is_reachable():
+        raise HTTPException(503, "Ollama not reachable")
+    data = _load_session(full)
+    if not data["notes_body"]:
+        raise HTTPException(400, "no session notes found")
+
+    session_date = data["real_date"] or full.name[:10]
+    session_slug = full.name
+    prompts_dir = ROOT / "backend" / "app" / "prompts"
+
+    # Canonical name map: token → display name
+    _CANON = {
+        "selise": "Selise", "ivy": "Ivy", "gororook": "Gororook",
+        "bororook": "Gororook", "goro": "Gororook", "gor": "Gororook",
+        "rowin": "Rowin", "elliandis": "Elliandis",
+        "ell": "Elliandis", "eli": "Elliandis", "elli": "Elliandis",
+    }
+
+    async def _stream():
+        scenes = _scene_splitter.split_into_scenes(data["notes_body"])
+        total = len(scenes)
+        yield f"Scanning {total} scene{'s' if total != 1 else ''} for party moments…\n"
+
+        moments = await _extractors.extract_party_moments(
+            scenes, prompts_dir,
+            progress=None,
+        )
+
+        yield f"Found {len(moments)} moment{'s' if len(moments) != 1 else ''}\n"
+
+        # Group moments by canonical character name
+        by_char: dict[str, list[str]] = {}
+        for m in moments:
+            token = next((t for t in _CANON if t in m.character.lower()), None)
+            if not token:
+                continue
+            canon = _CANON[token]
+            by_char.setdefault(canon, [])
+            by_char[canon].append(m.moment)
+
+        party_dir = CODEX_ROOT / "party"
+        written = 0
+        for canon_name, moment_lines in by_char.items():
+            # Find the matching party file
+            md_path = next(
+                (p for p in party_dir.glob("*.md")
+                 if canon_name.lower() in p.stem.lower()),
+                None,
+            )
+            if not md_path:
+                yield f"  ⚠ No party file found for {canon_name}\n"
+                continue
+
+            content = md_path.read_text(encoding="utf-8")
+            section_header = f"### {session_date} ({session_slug})"
+
+            # Skip if this session date already written
+            if section_header in content or f"### {session_date}\n" in content:
+                yield f"  ↷ {canon_name}: already has moments for {session_date}\n"
+                continue
+
+            bullet_lines = "\n".join(f"- {line}" for line in moment_lines)
+            new_block = f"\n{section_header}\n{bullet_lines}\n"
+
+            if "## Significant Moments" in content:
+                content = content.replace(
+                    "## Significant Moments\n",
+                    f"## Significant Moments\n{new_block}",
+                )
+            else:
+                content = content.rstrip() + "\n\n## Significant Moments\n" + new_block
+
+            md_path.write_text(content, encoding="utf-8")
+            written += 1
+            yield f"  ✓ {canon_name}: {len(moment_lines)} moment{'s' if len(moment_lines) != 1 else ''} written\n"
+
+            # Regenerate overview for this character now that moments are updated
+            yield f"  ✦ regenerating overview for {canon_name}…\n"
+            entity_data = entity_reader.load(md_path)
+            overview_prompt_task = (ROOT / "backend" / "app" / "prompts" / "summarize_entity.md").read_text(encoding="utf-8")
+            overview_context = _build_entity_context(entity_data)
+            overview_prompt = f"{overview_prompt_task}\n\n---\n\nCHARACTER DATA:\n\n{overview_context}\n\n---\n\nWrite the overview now."
+            ov_chunks: list[str] = []
+            async for chunk in ollama_client.stream(overview_prompt, system=SYSTEM_PROMPT):
+                ov_chunks.append(chunk)
+            overview_text = "".join(ov_chunks).strip()
+            if overview_text:
+                file_content = md_path.read_text(encoding="utf-8")
+                new_ov = f"\n## Overview\n\n{overview_text}\n"
+                if "## Overview" in file_content:
+                    file_content = _re.sub(r"\n## Overview\n.*?(?=\n## |\Z)", new_ov, file_content, flags=_re.DOTALL)
+                else:
+                    fm_end = file_content.find("\n---\n", 4)
+                    fm_end = (fm_end + 5) if fm_end != -1 else (file_content.find("---\n", 4) + 4)
+                    rest = file_content[fm_end:]
+                    m = _re.search(r"\n## ", rest)
+                    if m:
+                        ins = fm_end + m.start()
+                        file_content = file_content[:ins] + new_ov + file_content[ins:]
+                    else:
+                        file_content = file_content.rstrip() + new_ov
+                md_path.write_text(file_content, encoding="utf-8")
+                yield f"  ✓ overview updated for {canon_name}\n"
+
+        yield f"\nDone — {written} character file{'s' if written != 1 else ''} updated\n"
+
+    return StreamingResponse(_stream(), media_type="text/plain")
+
+
 @app.get("/api/session/candidates")
 async def get_candidates(path: str):
     full = (CODEX_ROOT / path).resolve()
@@ -815,6 +963,85 @@ async def update_entity_disposition(payload: dict):
     return {"path": path, "disposition": disposition}
 
 
+@app.post("/api/threads/archive-resolved")
+async def archive_resolved_threads():
+    """Move all resolved plot threads to plot-threads/archived/."""
+    threads_dir = CODEX_ROOT / "plot-threads"
+    archived_dir = threads_dir / "archived"
+    archived_dir.mkdir(exist_ok=True)
+
+    archived = 0
+    for md in threads_dir.glob("*.md"):
+        text = md.read_text(encoding="utf-8")
+        if _re.search(r"^status:\s*resolved\s*$", text, flags=_re.MULTILINE):
+            dest = archived_dir / md.name
+            # Avoid name collision
+            if dest.exists():
+                dest = archived_dir / (md.stem + "-archived.md")
+            md.rename(dest)
+            archived += 1
+
+    return {"archived": archived}
+
+
+@app.post("/api/threads/consolidate")
+async def consolidate_threads():
+    """Use LLM to group related open/dormant threads and suggest merges."""
+    if not await ollama_client.is_reachable():
+        raise HTTPException(503, "Ollama not reachable")
+
+    threads_dir = CODEX_ROOT / "plot-threads"
+    threads: list[dict] = []
+    for md in sorted(threads_dir.glob("*.md")):
+        fm = _fm.load(md)
+        status = str(fm.get("status", "open")).strip()
+        if status in ("open", "dormant"):
+            name = str(fm.get("name", md.stem))
+            tags = entity_reader._parse_list_field(fm.get("tags", []))
+            threads.append({"name": name, "status": status, "tags": tags})
+
+    if len(threads) < 2:
+        return {"groups": []}
+
+    thread_list = "\n".join(
+        f"{i+1}. [{t['status']}] {t['name']}" + (f" (tags: {', '.join(t['tags'])})" if t['tags'] else "")
+        for i, t in enumerate(threads)
+    )
+
+    prompt = (
+        "You are analyzing a list of D&D campaign plot threads. "
+        "Group threads that are clearly part of the same larger storyline or arc. "
+        "Only group threads that genuinely belong together — don't force connections. "
+        "Return a JSON array of groups. Each group object must have:\n"
+        '  "theme": short label for the shared arc (5 words max)\n'
+        '  "threads": list of thread names that belong together\n'
+        '  "suggestion": one sentence on how they could be consolidated\n\n'
+        "Threads with no obvious match should not appear in any group. "
+        "Return ONLY valid JSON, no prose.\n\n"
+        f"THREAD LIST:\n{thread_list}\n\n"
+        "JSON:"
+    )
+
+    full_response = ""
+    async for chunk in ollama_client.stream(prompt):
+        full_response += chunk
+
+    # Extract JSON array from response
+    m = _re.search(r'\[.*\]', full_response, _re.DOTALL)
+    if not m:
+        return {"groups": []}
+
+    import json as _json_local
+    try:
+        groups = _json_local.loads(m.group())
+    except Exception:
+        return {"groups": []}
+
+    # Only return groups with 2+ threads
+    groups = [g for g in groups if isinstance(g.get("threads"), list) and len(g["threads"]) >= 2]
+    return {"groups": groups}
+
+
 @app.post("/api/entity/merge")
 async def merge_entities(payload: dict):
     """Merge one or more entity files into a canonical target."""
@@ -880,6 +1107,163 @@ async def merge_entities(payload: dict):
 
     indexer.reindex(CODEX_ROOT, DB_PATH)
     return {"kept": keep_path, "merged": len(others), "name": final_name}
+
+
+def _build_entity_context(data: dict) -> str:
+    """Build a human-readable context block from entity data for LLM summarization."""
+    lines: list[str] = []
+    lines.append(f"NAME: {data['name']}")
+    lines.append(f"TYPE: {data['kind']}")
+    if data.get("role"):
+        lines.append(f"ROLE: {data['role']}")
+    if data.get("allegiance"):
+        lines.append(f"ALLEGIANCE: {data['allegiance']}")
+    if data.get("disposition"):
+        lines.append(f"DISPOSITION: {data['disposition']}")
+    if data.get("first_seen"):
+        lines.append(f"FIRST SEEN: {data['first_seen']}")
+    if data.get("sessions"):
+        lines.append(f"SESSIONS APPEARED IN: {len(data['sessions'])}")
+    if data.get("aliases"):
+        lines.append(f"ALIASES: {', '.join(data['aliases'])}")
+    if data.get("tags"):
+        lines.append(f"TAGS: {', '.join(data['tags'])}")
+
+    if data.get("description"):
+        lines.append(f"\nDESCRIPTION:\n{data['description']}")
+
+    if data.get("personal_storylines"):
+        lines.append("\nPERSONAL STORYLINES:")
+        for s in data["personal_storylines"]:
+            lines.append(f"  - {s}")
+
+    if data.get("significant_moments"):
+        lines.append("\nSIGNIFICANT MOMENTS:")
+        for block in data["significant_moments"]:
+            lines.append(f"  [{block['date']}]")
+            for m in block["moments"]:
+                lines.append(f"    - {m}")
+
+    if data.get("appearances"):
+        lines.append("\nAPPEARANCES (selected quotes):")
+        for app in data["appearances"][-6:]:  # last 6 sessions
+            lines.append(f"  [{app['date']}]")
+            for s in app.get("scenes", [])[:2]:
+                lines.append(f"    Scene {s['num']}: \"{s['quote']}\"")
+
+    return "\n".join(lines)
+
+
+@app.post("/api/entity/summarize")
+async def summarize_entity(payload: dict):
+    """Stream an LLM-generated overview for a party member or NPC and write it to their file."""
+    path = (payload.get("path") or "").strip()
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
+        raise HTTPException(404, "entity not found")
+    if not await ollama_client.is_reachable():
+        raise HTTPException(503, "Ollama not reachable")
+
+    data = entity_reader.load(full)
+    if data["kind"] not in ("party", "npc"):
+        raise HTTPException(400, "summarization only available for party members and NPCs")
+
+    task = (ROOT / "backend" / "app" / "prompts" / "summarize_entity.md").read_text(encoding="utf-8")
+    context = _build_entity_context(data)
+    prompt = f"{task}\n\n---\n\nCHARACTER DATA:\n\n{context}\n\n---\n\nWrite the overview now."
+
+    async def _stream():
+        chunks: list[str] = []
+        async for chunk in ollama_client.stream(prompt, system=SYSTEM_PROMPT):
+            chunks.append(chunk)
+            yield chunk
+
+        overview_text = "".join(chunks).strip()
+        if not overview_text:
+            return
+
+        content = full.read_text(encoding="utf-8")
+        new_section = f"\n## Overview\n\n{overview_text}\n"
+
+        if "## Overview" in content:
+            # Replace existing overview section
+            content = _re.sub(
+                r"\n## Overview\n.*?(?=\n## |\Z)",
+                new_section,
+                content,
+                flags=_re.DOTALL,
+            )
+        else:
+            # Insert after frontmatter + description, before other sections
+            fm_end = content.find("\n---\n", 4)
+            if fm_end == -1:
+                fm_end = content.find("---\n", 4) + 4
+            else:
+                fm_end += 5  # skip past closing ---\n
+            rest = content[fm_end:]
+            first_section = _re.search(r"\n## ", rest)
+            if first_section:
+                insert_at = fm_end + first_section.start()
+                content = content[:insert_at] + new_section + content[insert_at:]
+            else:
+                content = content.rstrip() + new_section
+
+        full.write_text(content, encoding="utf-8")
+
+    return StreamingResponse(_stream(), media_type="text/plain")
+
+
+_DDB_CHARACTER_URL = "https://character-service.dndbeyond.com/character/v5/character/{id}?includeCustomItems=true"
+
+
+@app.post("/api/entity/import-ddb")
+async def import_ddb(payload: dict):
+    """Fetch a D&D Beyond character by ID and store as a JSON sidecar next to the entity file."""
+    path = (payload.get("path") or "").strip()
+    character_id = str(payload.get("character_id") or "").strip()
+    if not character_id.isdigit():
+        raise HTTPException(400, "character_id must be numeric")
+
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
+        raise HTTPException(404, "entity not found")
+
+    url = _DDB_CHARACTER_URL.format(id=character_id)
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            resp.raise_for_status()
+            ddb = resp.json()
+    except Exception as exc:
+        raise HTTPException(502, f"D&D Beyond fetch failed: {exc}")
+
+    if not ddb.get("success"):
+        msg = (ddb.get("data") or {}).get("serverMessage") or ddb.get("message") or "unknown error"
+        raise HTTPException(502, f"D&D Beyond returned error: {msg}")
+
+    character_data = ddb["data"]
+    sidecar = full.with_suffix(".ddb.json")
+    sidecar.write_text(_json.dumps(character_data, indent=2), encoding="utf-8")
+
+    # Write ddb_id into entity frontmatter
+    fm = _fm.load(full)
+    fm["ddb_id"] = character_id
+    fm["ddb_url"] = character_data.get("readonlyUrl", "")
+    full.write_text(_fm.dumps(fm), encoding="utf-8")
+
+    return {"ok": True, "name": character_data.get("name"), "character_id": character_id}
+
+
+@app.get("/api/entity/ddb-sheet")
+async def get_ddb_sheet(path: str):
+    """Return the cached D&D Beyond character JSON for an entity."""
+    full = (CODEX_ROOT / path).resolve()
+    if not str(full).startswith(str(CODEX_ROOT.resolve())) or not full.exists():
+        raise HTTPException(404, "entity not found")
+    sidecar = full.with_suffix(".ddb.json")
+    if not sidecar.exists():
+        raise HTTPException(404, "no D&D Beyond data imported yet")
+    return _json.loads(sidecar.read_text(encoding="utf-8"))
 
 
 @app.get("/upload", response_class=HTMLResponse)
@@ -1113,9 +1497,12 @@ async def bulk_process(payload: dict):
                     continue
 
                 prompt = (
-                    "Write a 2-3 paragraph narrative session recap in past tense, as if briefing a player who missed the session. "
-                    "Cover: what the party investigated or accomplished, key NPCs they met, any combat or significant skill checks, "
-                    "and which plot threads advanced or opened. Use the character names exactly as written. "
+                    "Write a 3-5 paragraph narrative session recap in past tense, as if briefing a player who missed the session. "
+                    "Be thorough — more detail is better. Cover: what the party investigated or accomplished, every key NPC they "
+                    "encountered and what role they played, any combat or significant skill checks and their outcomes, important "
+                    "items found or exchanged, and which plot threads advanced, opened, or closed. "
+                    "If any character had a personal moment or revelation, include it. "
+                    "Use the character names exactly as written. "
                     "Do not invent any details not present in the notes. Do not include stat blocks or canonical lore.\n\n"
                     f"REAL DATE: {data['real_date']}\n"
                     f"IN-GAME DATE: {data['in_game_date']}\n\n"
@@ -1221,6 +1608,86 @@ async def bulk_process(payload: dict):
         if auto_promote:
             indexer.reindex(CODEX_ROOT, DB_PATH)
         yield f"\n═══ Bulk process complete: {done} done, {skipped} skipped, {failed} failed ═══\n"
+
+    return StreamingResponse(_stream(), media_type="text/plain")
+
+
+@app.post("/api/bulk/backfill-moments")
+async def bulk_backfill_moments():
+    """Stream progress while writing significant moments for all sessions that don't have them yet."""
+    if not await ollama_client.is_reachable():
+        raise HTTPException(503, "Ollama not reachable")
+
+    prompts_dir = ROOT / "backend" / "app" / "prompts"
+    _CANON = {
+        "selise": "Selise", "ivy": "Ivy", "gororook": "Gororook",
+        "bororook": "Gororook", "goro": "Gororook", "gor": "Gororook",
+        "rowin": "Rowin", "elliandis": "Elliandis",
+        "ell": "Elliandis", "eli": "Elliandis", "elli": "Elliandis",
+    }
+    party_dir = CODEX_ROOT / "party"
+
+    async def _stream():
+        sessions = sorted(_all_sessions(), key=lambda s: s["real_date"])
+        total = len(sessions)
+        yield f"Found {total} sessions\n"
+        written_total = skipped_total = 0
+
+        for idx, s in enumerate(sessions, 1):
+            session_dir = CODEX_ROOT / "sessions" / s["slug"]
+            data = _load_session(session_dir)
+            if not data["notes_body"]:
+                continue
+
+            session_date = data["real_date"] or s["slug"][:10]
+            session_slug = s["slug"]
+            section_header = f"### {session_date} ({session_slug})"
+            date_header = f"### {session_date}\n"
+
+            # Skip this session if any party file already has moments for it
+            already_done = any(
+                (p.exists() and (section_header in p.read_text(encoding="utf-8")
+                                 or date_header in p.read_text(encoding="utf-8")))
+                for p in party_dir.glob("*.md")
+            )
+            if already_done:
+                skipped_total += 1
+                continue
+
+            yield f"\n[{idx}/{total}] {session_date} — {session_slug}\n"
+            scenes = _scene_splitter.split_into_scenes(data["notes_body"])
+            moments = await _extractors.extract_party_moments(scenes, prompts_dir)
+            yield f"  → {len(moments)} moment{'s' if len(moments) != 1 else ''} found\n"
+
+            by_char: dict[str, list[str]] = {}
+            for m in moments:
+                token = next((t for t in _CANON if t in m.character.lower()), None)
+                if not token:
+                    continue
+                canon = _CANON[token]
+                by_char.setdefault(canon, []).append(m.moment)
+
+            for canon_name, moment_lines in by_char.items():
+                md_path = next(
+                    (p for p in party_dir.glob("*.md") if canon_name.lower() in p.stem.lower()),
+                    None,
+                )
+                if not md_path:
+                    continue
+                content = md_path.read_text(encoding="utf-8")
+                if section_header in content or date_header in content:
+                    continue
+                bullet_lines = "\n".join(f"- {line}" for line in moment_lines)
+                new_block = f"\n{section_header}\n{bullet_lines}\n"
+                if "## Significant Moments" in content:
+                    content = content.replace("## Significant Moments\n", f"## Significant Moments\n{new_block}")
+                else:
+                    content = content.rstrip() + "\n\n## Significant Moments\n" + new_block
+                md_path.write_text(content, encoding="utf-8")
+                written_total += 1
+                yield f"  ✓ {canon_name}: {len(moment_lines)} moment{'s' if len(moment_lines) != 1 else ''}\n"
+
+        yield f"\n═══ Done — {written_total} character files updated, {skipped_total} sessions already had moments ═══\n"
 
     return StreamingResponse(_stream(), media_type="text/plain")
 
